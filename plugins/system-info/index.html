@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #111827; color: #d1d5db; font-family: sans-serif; }
+    </style>
+</head>
+<body class="p-6">
+    <div id="plugin-content">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h2 class="text-lg font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">System</h2>
+                <p><strong>Hostname:</strong> <span id="hostname"></span></p>
+                <p><strong>Platform:</strong> <span id="platform"></span></p>
+                <p><strong>OS Type:</strong> <span id="type"></span></p>
+                <p><strong>OS Release:</strong> <span id="release"></span></p>
+                <p><strong>Uptime:</strong> <span id="uptime"></span></p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg">
+                <h2 class="text-lg font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">Memory</h2>
+                <p><strong>Total Memory:</strong> <span id="totalmem"></span></p>
+                <p><strong>Free Memory:</strong> <span id="freemem"></span></p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg col-span-1 md:col-span-2">
+                <h2 class="text-lg font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">CPU</h2>
+                <p><strong>Model:</strong> <span id="cpu-model"></span></p>
+                <p><strong>Cores:</strong> <span id="cpu-cores"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Check if the API bridge exists at all
+                if (typeof window.electronAPI === 'undefined') {
+                    throw new Error('window.electronAPI is undefined. The preload script is failing to attach to the webview.');
+                }
+                
+                const os = window.electronAPI.os;
+
+                // Check if the 'os' part of the API exists
+                if (typeof os === 'undefined') {
+                    throw new Error('window.electronAPI.os is undefined. The API is incomplete.');
+                }
+
+                function formatBytes(bytes) {
+                    if (bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                }
+
+                function formatUptime(seconds) {
+                    const days = Math.floor(seconds / (3600*24));
+                    seconds  -= days*3600*24;
+                    const hrs   = Math.floor(seconds / 3600);
+                    seconds  -= hrs*3600;
+                    const mnts = Math.floor(seconds / 60);
+                    return `${days}d ${hrs}h ${mnts}m`;
+                }
+
+                document.getElementById('hostname').textContent = os.hostname();
+                document.getElementById('platform').textContent = os.platform();
+                document.getElementById('type').textContent = os.type();
+                document.getElementById('release').textContent = os.release();
+                document.getElementById('uptime').textContent = formatUptime(os.uptime());
+                document.getElementById('totalmem').textContent = formatBytes(os.totalmem());
+                document.getElementById('freemem').textContent = formatBytes(os.freemem());
+                const cpus = os.cpus();
+                document.getElementById('cpu-model').textContent = cpus[0].model;
+                document.getElementById('cpu-cores').textContent = cpus.length;
+
+            } catch (error) {
+                // If any error occurs, wipe the plugin UI and display the error message
+                const body = document.querySelector('body');
+                body.innerHTML = `<div style="color: #fca5a5; background-color: #450a0a; border: 1px solid #991b1b; padding: 20px; border-radius: 8px;">
+                    <h2 style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">Plugin Failed to Load</h2>
+                    <pre style="white-space: pre-wrap; word-wrap: break-word;">${error.stack}</pre>
+                </div>`;
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>

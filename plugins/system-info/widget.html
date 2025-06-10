@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: transparent; color: #d1d5db; font-family: sans-serif; }
+    </style>
+</head>
+<body class="p-4">
+    <!-- This widget only shows the 'System' card -->
+    <div class="bg-gray-800 p-4 rounded-lg h-full text-sm">
+        <h2 class="text-md font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">System</h2>
+        <p><strong>Hostname:</strong> <span id="hostname"></span></p>
+        <p><strong>Platform:</strong> <span id="platform"></span></p>
+        <p><strong>OS Type:</strong> <span id="type"></span></p>
+        <p><strong>Uptime:</strong> <span id="uptime"></span></p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                if (typeof window.electronAPI === 'undefined') {
+                    throw new Error('window.electronAPI is undefined.');
+                }
+                const os = window.electronAPI.os;
+
+                function formatUptime(seconds) {
+                    const days = Math.floor(seconds / (3600*24));
+                    seconds  -= days*3600*24;
+                    const hrs   = Math.floor(seconds / 3600);
+                    return `${days}d ${hrs}h`;
+                }
+
+                document.getElementById('hostname').textContent = os.hostname();
+                document.getElementById('platform').textContent = os.platform();
+                document.getElementById('type').textContent = os.type();
+                document.getElementById('uptime').textContent = formatUptime(os.uptime());
+
+            } catch (error) {
+                const body = document.querySelector('body');
+                body.innerHTML = `<div style="color: #fca5a5;">Error: ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

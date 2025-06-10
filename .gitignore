@@ -1,0 +1,14 @@
+# Node
+node_modules
+
+# Vite
+dist
+dist-ssr
+.vite
+
+# Electron
+.electron
+
+# IDE
+.idea
+.vscode
