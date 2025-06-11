@@ -1,6 +1,6 @@
 # Command Center Application
 
-This is a plugin-based command center application built with Electron, React, Vite, and Tailwind CSS.
+This is a plugin-based command center application built with Electron, React, Vite, and Tailwind CSS. This is a personal app that bypasses a lot of security restrictions as I intended it only for me, but have to post this repo publicly for reasons. I don't suggest using this app.
 
 ## How to Set Up and Run
 
