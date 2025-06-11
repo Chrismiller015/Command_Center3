@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: transparent; color: #e5e7eb; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .event-link { color: #818cf8; text-decoration: none; }
+        .event-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="p-4 flex flex-col justify-center h-full">
+    <div id="widget-content-container">Loading...</div>
+<script>
+    const { google } = window.electronAPI.require('googleapis');
+    const path = window.electronAPI.require('path');
+    const fs = window.electronAPI.require('fs').promises;
+
+    const PLUGIN_DIR = __dirname;
+    const TOKEN_PATH = path.join(PLUGIN_DIR, 'token.json');
+    const CREDS_PATH = path.join(PLUGIN_DIR, 'credentials.json');
+    const CALENDAR_CONFIG_PATH = path.join(PLUGIN_DIR, 'calendar_config.json');
+
+    const container = document.getElementById('widget-content-container');
+
+    async function getNextMeeting() {
+        try {
+            const credentials = JSON.parse(await fs.readFile(CREDS_PATH));
+            const tokens = JSON.parse(await fs.readFile(TOKEN_PATH));
+            const oAuth2Client = new google.auth.OAuth2(credentials.clientId, credentials.clientSecret);
+            oAuth2Client.setCredentials(tokens);
+
+            const calendar = google.calendar({version: 'v3', auth: oAuth2Client});
+            const config = await fs.readFile(CALENDAR_CONFIG_PATH);
+            const syncedCalendars = JSON.parse(config).filter(c => c.synced).map(c => c.id);
+
+            if (syncedCalendars.length === 0) {
+                 container.innerHTML = `<p class="text-center text-gray-400">No calendars selected.</p>`;
+                 return;
+            }
+
+            const now = new Date();
+            const timeMax = new Date();
+            timeMax.setDate(now.getDate() + 7);
+
+            const eventsPromises = syncedCalendars.map(calId => 
+                calendar.events.list({
+                    calendarId: calId,
+                    timeMin: now.toISOString(),
+                    timeMax: timeMax.toISOString(),
+                    maxResults: 5,
+                    singleEvents: true,
+                    orderBy: 'startTime',
+                })
+            );
+            
+            const results = await Promise.all(eventsPromises);
+            const allEvents = results.flatMap(res => res.data.items);
+            const upcomingEvents = allEvents
+                .filter(e => new Date(e.start.dateTime || e.start.date) > now)
+                .sort((a,b) => new Date(a.start.dateTime || a.start.date) - new Date(b.start.dateTime || b.start.date));
+
+            if (upcomingEvents.length > 0) {
+                const nextMeeting = upcomingEvents[0];
+                const startTime = new Date(nextMeeting.start.dateTime).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
+                container.innerHTML = `
+                    <h3 class="font-bold text-lg truncate" title="${nextMeeting.summary}">${nextMeeting.summary || 'No Title'}</h3>
+                    <p class="text-indigo-300 mb-2">Starts at ${startTime}</p>
+                    <p class="text-xs text-gray-400 truncate">
+                        ${nextMeeting.hangoutLink ? `<a href="${nextMeeting.hangoutLink}" target="_blank" class="event-link">Join Google Meet</a>` : 'No meeting link'}
+                    </p>
+                `;
+            } else {
+                container.innerHTML = `<p class="text-center text-gray-400">No upcoming meetings.</p>`;
+            }
+        } catch (error) {
+            console.error('Widget Error:', error);
+            container.innerHTML = `<p class="text-center text-red-400">Error</p>`;
+        }
+    }
+
+    getNextMeeting();
+    setInterval(getNextMeeting, 5 * 60 * 1000);
+</script>
+</body>
+</html>

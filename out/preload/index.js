@@ -29,5 +29,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     freemem: () => os.freemem(),
     cpus: () => os.cpus(),
     networkInterfaces: () => os.networkInterfaces()
+  },
+  /**
+   * Allows any sandboxed plugin to require a Node.js module.
+   * @param {string} moduleName - The name of the module to require (e.g., 'fs', 'path', 'googleapis').
+   * @returns {any} The required module.
+   */
+  require: (moduleName) => {
+    return require(moduleName);
   }
 });

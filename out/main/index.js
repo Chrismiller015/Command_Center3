@@ -158,6 +158,7 @@ function installDependencies(plugins) {
 }
 const pluginManager = { loadPlugins, installDependencies };
 let mainWindow;
+let allPlugins = [];
 const sanitizeForSQL = (id) => id.replace(/-/g, "_");
 function createWindow() {
   mainWindow = new electron.BrowserWindow({
@@ -173,8 +174,27 @@ function createWindow() {
     }
   });
   mainWindow.webContents.on("will-attach-webview", (event, webPreferences, params) => {
-    webPreferences.preload = path.join(__dirname, "../preload/index.js");
-    webPreferences.sandbox = false;
+    try {
+      const url = new URL(params.src);
+      const fsPath = process.platform === "win32" ? url.pathname.slice(1) : url.pathname;
+      const pluginDir = path.dirname(fsPath);
+      const plugin = allPlugins.find(
+        (p) => path.normalize(p.path).toLowerCase() === path.normalize(pluginDir).toLowerCase()
+      );
+      if (plugin && plugin.manifest.nodeIntegration) {
+        console.log(`Configuring webview for self-contained plugin: ${plugin.id}`);
+        webPreferences.nodeIntegration = true;
+        webPreferences.contextIsolation = false;
+        delete webPreferences.preload;
+      } else {
+        console.log(`Configuring webview for legacy plugin: ${plugin ? plugin.id : "Unknown"}`);
+        webPreferences.preload = path.join(__dirname, "../preload/index.js");
+        webPreferences.sandbox = false;
+      }
+    } catch (e) {
+      console.error("Error in will-attach-webview:", e);
+      webPreferences.preload = path.join(__dirname, "../preload/index.js");
+    }
   });
   mainWindow.on("ready-to-show", () => {
     mainWindow.show();
@@ -197,10 +217,10 @@ electron.app.whenReady().then(async () => {
   });
   console.log("App is ready. Initializing...");
   try {
-    const plugins = await pluginManager.loadPlugins();
-    console.log(`Loaded ${plugins.length} plugins.`);
-    await pluginManager.installDependencies(plugins);
-    await db$1.initialize(plugins);
+    allPlugins = await pluginManager.loadPlugins();
+    console.log(`Loaded ${allPlugins.length} plugins.`);
+    await pluginManager.installDependencies(allPlugins);
+    await db$1.initialize(allPlugins);
     console.log("Database initialized successfully.");
   } catch (error) {
     console.error("Failed during app initialization:", error);

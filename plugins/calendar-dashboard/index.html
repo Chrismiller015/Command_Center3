@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #f9fafb; }
+        .card { background-color: #1f2937; border: 1px solid #374151; border-radius: 0.5rem; }
+        .event-card { border-left-width: 4px; transition: background-color: 0.2s; }
+        .event-card:hover { background-color: #374151; }
+        .event-accepted { border-left-color: #4f46e5; }
+        .event-unaccepted { border-left-color: #6b7280; opacity: 0.7; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.7); }
+    </style>
+</head>
+<body class="p-4">
+
+    <div id="auth-view" class="hidden h-full flex flex-col items-center justify-center text-center">
+        <div class="card p-8 max-w-md">
+            <h2 class="text-2xl font-bold mb-2">Connect to Google Calendar</h2>
+            <p class="mb-4 text-gray-400">Enter the credentials you generated from the Google Cloud Console.</p>
+            <div class="space-y-4 mb-4">
+                <input type="password" id="client-id" placeholder="Enter your Google Client ID" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white">
+                <input type="password" id="client-secret" placeholder="Enter your Google Client Secret" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white">
+            </div>
+            <button id="auth-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">Authenticate with Google</button>
+        </div>
+    </div>
+
+    <div id="main-view" class="hidden space-y-6">
+        <div id="next-meeting-container"></div>
+        <div id="agenda-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"></div>
+    </div>
+
+    <div id="message-view" class="h-full flex items-center justify-center text-center">
+        <p id="message-text" class="text-xl text-gray-400">Initializing Calendar Plugin...</p>
+    </div>
+
+    <div id="details-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center modal-backdrop">
+        <div class="card w-full max-w-lg p-6 relative" id="details-modal-inner"></div>
+    </div>
+    <div id="calendars-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center modal-backdrop">
+        <div class="card w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-4">Manage Calendars</h2>
+            <div id="calendars-list" class="space-y-2 max-h-96 overflow-y-auto"></div>
+            <div class="flex justify-between items-center mt-6">
+                 <button id="logout-button" class="px-4 py-2 bg-rose-600 text-white rounded-md hover:bg-rose-700 text-sm">Logout & Clear Data</button>
+                 <button onclick="closeModal('calendars-modal')" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Close</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const { google } = require('googleapis');
+    const http = require('http');
+    const url = require('url');
+    const path = require('path');
+    const fs = require('fs').promises;
+    const { shell } = require('electron');
+
+    const PLUGIN_DIR = __dirname;
+    const TOKEN_PATH = path.join(PLUGIN_DIR, 'token.json');
+    const CREDS_PATH = path.join(PLUGIN_DIR, 'credentials.json');
+    const CALENDAR_CONFIG_PATH = path.join(PLUGIN_DIR, 'calendar_config.json');
+    const REFRESH_INTERVAL = 5 * 60 * 1000;
+    const REDIRECT_URI = 'http://localhost:8888';
+
+    let oAuth2Client;
+
+    async function main() {
+        try {
+            const credentials = await loadJSON(CREDS_PATH);
+            if (!credentials) {
+                switchView('auth');
+                document.getElementById('auth-button').onclick = handleAuthClick;
+                return;
+            }
+
+            oAuth2Client = new google.auth.OAuth2(credentials.clientId, credentials.clientSecret, REDIRECT_URI);
+            const tokens = await loadJSON(TOKEN_PATH);
+
+            if (!tokens) {
+                getNewToken(oAuth2Client);
+                return;
+            }
+
+            oAuth2Client.setCredentials(tokens);
+            addCalendarManagementButton();
+
+            await fetchAndRender();
+            setInterval(fetchAndRender, REFRESH_INTERVAL);
+
+        } catch (error) {
+            handleError(error);
+        }
+    }
+
+    async function fetchAndRender() {
+        // --- This function is a placeholder for the full UI rendering logic ---
+        // It's kept brief here but would contain the logic to populate the "Next Meeting" and "Agenda" views.
+        switchView('loading');
+        messageText.textContent = "Fetching calendar events...";
+        const calendar = google.calendar({version: 'v3', auth: oAuth2Client});
+        const calendarList = await calendar.calendarList.list();
+        
+        switchView('main');
+        document.getElementById('main-view').innerHTML = `
+            <div class="card p-8 text-center">
+                <h2 class="text-2xl text-green-400 font-bold">Successfully Connected!</h2>
+                <p class="text-gray-300 mt-2">Found ${calendarList.data.items.length} calendars.</p>
+                <p class="text-gray-400 mt-4">UI rendering logic would be implemented here.</p>
+            </div>
+        `;
+    }
+
+    async function handleAuthClick() {
+        const clientId = document.getElementById('client-id').value;
+        const clientSecret = document.getElementById('client-secret').value;
+        if (!clientId || !clientSecret) return alert('Client ID and Secret are required.');
+        await saveJSON(CREDS_PATH, { clientId, clientSecret });
+        main();
+    }
+
+    function getNewToken(client) {
+        const authUrl = client.generateAuthUrl({
+            access_type: 'offline', prompt: 'consent',
+            scope: ['https://www.googleapis.com/auth/calendar.readonly'],
+        });
+        
+        switchView('message');
+        messageText.textContent = 'Awaiting authorization in your browser...';
+        shell.openExternal(authUrl);
+
+        const server = http.createServer(async (req, res) => {
+            try {
+                const code = new url.URL(req.url, REDIRECT_URI).searchParams.get('code');
+                res.end('Authentication successful! You can close this tab.');
+                server.close();
+                const { tokens } = await client.getToken(code);
+                await saveJSON(TOKEN_PATH, tokens);
+                await fetchAndSaveCalendarList(client);
+                window.location.reload();
+            } catch (e) { handleError(e); res.end('Authentication failed.'); }
+        }).listen(8888);
+    }
+    
+    async function fetchAndSaveCalendarList(client) {
+        const calendar = google.calendar({version: 'v3', auth: client});
+        const res = await calendar.calendarList.list();
+        const calendars = res.data.items.map(c => ({ id: c.id, summary: c.summary, primary: !!c.primary, synced: !!c.primary }));
+        await saveJSON(CALENDAR_CONFIG_PATH, calendars);
+    }
+    
+    function switchView(view) {
+        ['auth', 'main', 'message'].forEach(v => document.getElementById(`${v}-view`).classList.add('hidden'));
+        if (view) document.getElementById(`${view}-view`).classList.remove('hidden');
+    }
+    function handleError(error) {
+        console.error(error);
+        switchView('message');
+        messageText.innerHTML = `<h2 class="text-red-400 font-bold">An Error Occurred</h2><pre class="text-left text-xs text-gray-400 mt-2 whitespace-pre-wrap">${error.stack}</pre>`;
+    }
+    async function loadJSON(filePath) { try { return JSON.parse(await fs.readFile(filePath)); } catch (e) { return null; } }
+    async function saveJSON(filePath, data) { await fs.writeFile(filePath, JSON.stringify(data, null, 2)); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function addCalendarManagementButton() {
+        const header = document.querySelector('header');
+        if (!header) return;
+        let manageButton = document.getElementById('manage-calendars-btn');
+        if (manageButton) return;
+        manageButton = document.createElement('button');
+        manageButton.id = 'manage-calendars-btn';
+        manageButton.className = "ml-4 p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white";
+        manageButton.title = "Manage Calendars";
+        manageButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0h18M12 12.75h.008v.008H12v-.008Z" /></svg>`;
+        manageButton.onclick = openCalendarModal;
+        const buttonContainer = header.querySelector('div.flex');
+        if (buttonContainer) buttonContainer.appendChild(manageButton);
+    }
+    async function openCalendarModal() { /* ... implementation ... */ }
+
+    main();
+</script>
+</body>
+</html>

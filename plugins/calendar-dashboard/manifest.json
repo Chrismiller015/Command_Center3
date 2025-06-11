@@ -1,0 +1,13 @@
+{
+  "name": "Calendar Dashboard",
+  "version": "1.0.0",
+  "description": "An at-a-glance agenda view of your Google Calendar.",
+  "entryPoint": "index.html",
+  "widget": "widget.html",
+  "dependencies": {
+    "googleapis": "^105.0.0"
+  },
+  "nodeIntegration": true, 
+  "settings": [],
+  "tables": []
+}
