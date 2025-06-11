@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { 
+            background-color: #111827;
+            color: #e5e7eb;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background-color: rgba(31, 41, 55, 0.7);
+            border: 1px solid rgba(75, 85, 99, 0.5);
+            border-radius: 1rem;
+        }
+        .alert-card {
+            background-color: rgba(220, 38, 38, 0.3);
+            border: 1px solid rgba(220, 38, 38, 0.8);
+            border-radius: 1rem;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div id="plugin-container" class="space-y-6">
+        
+        <div id="message-container" class="text-center p-10 glass-card">
+            <h2 id="message-text" class="text-2xl text-indigo-300 font-semibold">Loading Weather Data...</h2>
+            <p id="message-subtext" class="text-gray-400">Please make sure your API keys and address are set in the plugin settings.</p>
+        </div>
+        
+        <div id="weather-content" class="hidden space-y-6">
+            
+            <div id="alert-card-container" class="hidden alert-card p-4">
+                <h2 id="alert-event" class="text-xl font-bold text-white"></h2>
+                <p id="alert-description" class="text-red-100"></p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div id="today-card" class="lg:col-span-2 glass-card p-6 text-center md:text-left">
+                    <p id="today-location" class="text-2xl font-bold text-white">--</p>
+                    <p id="today-temp" class="text-7xl font-bold text-white">--°</p>
+                    <p id="today-description" class="text-xl text-indigo-300 capitalize">--</p>
+                    <p id="today-high-low" class="text-gray-300">H: --° / L: --°</p>
+                </div>
+                
+                <div class="glass-card p-6 grid grid-cols-2 gap-4 text-center">
+                    <div> <p class="text-sm text-gray-400">Humidity</p> <p id="detail-humidity" class="text-2xl font-semibold">--%</p> </div>
+                    <div> <p class="text-sm text-gray-400">Dew Point</p> <p id="detail-dew-point" class="text-2xl font-semibold">--°</p> </div>
+                    <div> <p class="text-sm text-gray-400">Pressure</p> <p id="detail-pressure" class="text-2xl font-semibold">--</p> </div>
+                    <div> <p class="text-sm text-gray-400">Air Quality</p> <p id="detail-aqi" class="text-2xl font-semibold">--</p> </div>
+                    <div> <p class="text-sm text-gray-400">Wind</p> <p id="detail-wind" class="text-2xl font-semibold">--</p> </div>
+                    <div> <p class="text-sm text-gray-400">UV Index</p> <p id="detail-uvi" class="text-2xl font-semibold">--</p> </div>
+                </div>
+            </div>
+
+            <div class="glass-card p-6">
+                <h3 class="text-xl font-bold text-white mb-4">24-Hour Forecast</h3>
+                <div id="hourly-forecast-container" class="flex space-x-4 overflow-x-auto pb-2"></div>
+            </div>
+
+            <div class="glass-card p-6">
+                <h3 class="text-xl font-bold text-white mb-4">10-Day Forecast</h3>
+                <div id="daily-forecast-container" class="grid grid-cols-2 md:grid-cols-5 gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const pluginId = 'weather-plugin';
+            let settings = {};
+            
+            async function fetchData() {
+                try {
+                    settings = await window.electronAPI.getPluginSettings(pluginId);
+                    if (!settings.openWeatherApiKey || !settings.geoapifyApiKey || !settings.userAddress) {
+                        document.getElementById('message-text').textContent = 'Configuration Missing';
+                        return;
+                    }
+                    settings.units = settings.units?.toLowerCase() === 'metric' ? 'metric' : 'imperial';
+
+                    const geoResponse = await axios.get(`https://api.geoapify.com/v1/geocode/search`, { params: { text: settings.userAddress, apiKey: settings.geoapifyApiKey } });
+                    if (!geoResponse.data.features.length) {
+                        document.getElementById('message-text').textContent = 'Address not found';
+                        return;
+                    }
+                    const { lat, lon, city } = geoResponse.data.features[0].properties;
+
+                    const weatherResponse = await axios.get(`https://api.openweathermap.org/data/3.0/onecall`, { params: { lat, lon, appid: settings.openWeatherApiKey, units: settings.units, exclude: 'minutely' } });
+                    const aqResponse = await axios.get(`https://api.openweathermap.org/data/2.5/air_pollution`, { params: { lat, lon, appid: settings.openWeatherApiKey } });
+
+                    document.getElementById('message-container').classList.add('hidden');
+                    document.getElementById('weather-content').classList.remove('hidden');
+                    
+                    renderAlerts(weatherResponse.data.alerts);
+                    renderCurrentWeather(weatherResponse.data.current, weatherResponse.data.daily[0], aqResponse.data.list[0], city || settings.userAddress);
+                    renderHourlyForecast(weatherResponse.data.hourly);
+                    renderDailyForecast(weatherResponse.data.daily);
+                } catch (error) {
+                    console.error("Failed to fetch weather data:", error);
+                    document.getElementById('message-text').textContent = 'Failed to load weather data.';
+                    document.getElementById('message-subtext').textContent = error.message;
+                }
+            }
+
+            const formatTemp = (temp) => `${Math.round(temp)}°${settings.units === 'metric' ? 'C' : 'F'}`;
+            const getAqiText = (aqi) => ({ 1: 'Good', 2: 'Fair', 3: 'Moderate', 4: 'Poor', 5: 'Very Poor' }[aqi] || 'N/A');
+
+            function renderAlerts(alerts) {
+                const container = document.getElementById('alert-card-container');
+                container.classList.toggle('hidden', !alerts || alerts.length === 0);
+                if (alerts && alerts.length > 0) {
+                    document.getElementById('alert-event').textContent = alerts[0].event;
+                    document.getElementById('alert-description').textContent = alerts[0].description;
+                }
+            }
+            
+            function renderCurrentWeather(current, today, aqiData, locationName) {
+                document.getElementById('today-location').textContent = locationName;
+                document.getElementById('today-temp').textContent = formatTemp(current.temp);
+                document.getElementById('today-description').textContent = current.weather[0].description;
+                document.getElementById('today-high-low').textContent = `H: ${formatTemp(today.temp.max)} / L: ${formatTemp(today.temp.min)}`;
+                document.getElementById('detail-humidity').textContent = `${current.humidity}%`;
+                document.getElementById('detail-dew-point').textContent = formatTemp(current.dew_point);
+                document.getElementById('detail-pressure').textContent = `${current.pressure} hPa`;
+                document.getElementById('detail-wind').textContent = `${Math.round(current.wind_speed)} ${settings.units === 'metric' ? 'm/s' : 'mph'}`;
+                document.getElementById('detail-uvi').textContent = `${Math.round(current.uvi)}`;
+                document.getElementById('detail-aqi').textContent = getAqiText(aqiData.main.aqi);
+            }
+
+            function renderHourlyForecast(hourly) {
+                const container = document.getElementById('hourly-forecast-container');
+                container.innerHTML = hourly.slice(0, 24).map(hour => `
+                    <div class="flex flex-col items-center p-2 rounded-lg bg-gray-700/50 flex-shrink-0">
+                        <p class="font-semibold text-sm">${new Date(hour.dt * 1000).toLocaleTimeString([], { hour: 'numeric' })}</p>
+                        <img src="https://openweathermap.org/img/wn/${hour.weather[0].icon}.png" alt="${hour.weather[0].description}" class="w-10 h-10"/>
+                        <p class="text-lg font-bold">${formatTemp(hour.temp)}</p>
+                    </div>`).join('');
+            }
+
+            function renderDailyForecast(daily) {
+                const container = document.getElementById('daily-forecast-container');
+                container.innerHTML = daily.slice(0, 10).map(day => `
+                    <div class="flex flex-col items-center p-2 rounded-lg bg-gray-700/50">
+                        <p class="font-bold">${new Date(day.dt * 1000).toLocaleDateString([], { weekday: 'short' })}</p>
+                        <img src="https://openweathermap.org/img/wn/${day.weather[0].icon}.png" alt="${day.weather[0].description}" class="w-12 h-12"/>
+                        <p>${formatTemp(day.temp.max)} / ${formatTemp(day.temp.min)}</p>
+                    </div>`).join('');
+            }
+
+            fetchData();
+            setInterval(fetchData, 30 * 60 * 1000);
+        });
+    </script>
+</body>
+</html>

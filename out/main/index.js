@@ -126,24 +126,33 @@ function installDependencies(plugins) {
     plugins.forEach((plugin) => {
       if (plugin.manifest.dependencies) {
         Object.keys(plugin.manifest.dependencies).forEach((dep) => {
-          dependencies.add(`${dep}@${plugin.manifest.dependencies[dep]}`);
+          try {
+            require.resolve(dep);
+          } catch (e) {
+            dependencies.add(`${dep}@${plugin.manifest.dependencies[dep]}`);
+          }
         });
       }
     });
     if (dependencies.size === 0) {
-      console.log("No new plugin dependencies to install.");
-      return resolve();
+      console.log("All plugin dependencies are already satisfied.");
+      return resolve(false);
     }
     const command = `npm install ${[...dependencies].join(" ")}`;
-    console.log(`Running installation: ${command}`);
-    child_process.exec(command, (error, stdout, stderr) => {
+    console.log(`[PluginManager] Running installation: ${command}`);
+    child_process.exec(command, { cwd: process.cwd() }, (error, stdout, stderr) => {
       if (error) {
-        console.error(`Error installing plugin dependencies: ${error}`);
+        console.error(`[PluginManager] Error installing plugin dependencies: ${error.message}`);
+        if (stderr) {
+          console.error(`[PluginManager] Stderr: ${stderr}`);
+        }
         return reject(error);
       }
-      console.log(`Dependency installation stdout: ${stdout}`);
-      if (stderr) console.error(`Dependency installation stderr: ${stderr}`);
-      resolve();
+      console.log(`[PluginManager] Dependency installation stdout: ${stdout}`);
+      if (stderr) {
+        console.warn(`[PluginManager] Dependency installation stderr (might contain warnings): ${stderr}`);
+      }
+      resolve(true);
     });
   });
 }

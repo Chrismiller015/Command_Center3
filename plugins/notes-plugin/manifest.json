@@ -1,0 +1,20 @@
+{
+    "name": "Notes",
+    "version": "1.0.0",
+    "description": "A rich-text note-taking plugin with tagging and search functionality.",
+    "entryPoint": "index.html",
+    "dependencies": {},
+    "settings": [],
+    "tables": [
+        {
+            "name": "notes",
+            "columns": [
+                { "name": "id", "type": "INTEGER PRIMARY KEY AUTOINCREMENT" },
+                { "name": "content", "type": "TEXT" },
+                { "name": "tags", "type": "TEXT" },
+                { "name": "createdAt", "type": "DATETIME NOT NULL" },
+                { "name": "updatedAt", "type": "DATETIME NOT NULL" }
+            ]
+        }
+    ]
+}

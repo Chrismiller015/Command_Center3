@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setPluginSetting: (pluginId, key, value) => ipcRenderer.invoke('db-set-plugin-setting', pluginId, key, value),
   regenerateTables: (pluginId) => ipcRenderer.invoke('plugin-regenerate-tables', pluginId),
   
+  // Lottie Animation Data Getter
+  getLottieAnimation: (pluginId, animationPath) => ipcRenderer.invoke('get-lottie-animation', pluginId, animationPath),
+  
   // Plugin Database Query APIs
   dbRun: (pluginId, sql, params = []) => ipcRenderer.invoke('db-run-query', pluginId, sql, params),
   dbAll: (pluginId, sql, params = []) => ipcRenderer.invoke('db-all-query', pluginId, sql, params),

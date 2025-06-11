@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { 
+            background-color: transparent; 
+            color: #e5e7eb; 
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="p-4 flex flex-col justify-between h-full">
+    <div id="widget-container">
+        <div id="widget-message-container" class="text-center">
+            <p id="widget-message-text" class="text-indigo-300">Loading...</p>
+        </div>
+
+        <div id="widget-content" class="hidden">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p id="widget-temp" class="text-5xl font-bold">--°</p>
+                    <p id="widget-high-low" class="text-gray-300">H:--°/L:--°</p>
+                </div>
+                <img id="widget-icon" class="w-20 h-20"/>
+            </div>
+            <div id="widget-hourly-container" class="mt-2 flex justify-around"></div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const pluginId = 'weather-plugin';
+            const messageContainer = document.getElementById('widget-message-container');
+            const messageText = document.getElementById('widget-message-text');
+            const widgetContent = document.getElementById('widget-content');
+
+            function showError(message) {
+                messageContainer.classList.remove('hidden');
+                widgetContent.classList.add('hidden');
+                messageText.textContent = message;
+            }
+
+            async function fetchData() {
+                try {
+                    const settings = await window.electronAPI.getPluginSettings(pluginId);
+                    if (!settings.openWeatherApiKey || !settings.geoapifyApiKey || !settings.userAddress) {
+                        return showError("Config Missing");
+                    }
+                    const units = settings.units?.toLowerCase() === 'metric' ? 'metric' : 'imperial';
+                    
+                    const geoResponse = await axios.get(`https://api.geoapify.com/v1/geocode/search`, { params: { text: settings.userAddress, apiKey: settings.geoapifyApiKey } });
+                    if (!geoResponse.data.features.length) {
+                        return showError("No Location");
+                    }
+                    const { lat, lon } = geoResponse.data.features[0].properties;
+
+                    // Make a single, more efficient API call
+                    const weatherResponse = await axios.get(`https://api.openweathermap.org/data/3.0/onecall`, { 
+                        params: { 
+                            lat, 
+                            lon, 
+                            appid: settings.openWeatherApiKey, 
+                            units, 
+                            exclude: 'minutely,alerts' 
+                        } 
+                    });
+                    
+                    const { current, hourly, daily } = weatherResponse.data;
+                    const today = daily[0];
+
+                    messageContainer.classList.add('hidden');
+                    widgetContent.classList.remove('hidden');
+
+                    const formatTemp = (temp) => `${Math.round(temp)}°`;
+
+                    document.getElementById('widget-temp').textContent = formatTemp(current.temp);
+                    document.getElementById('widget-high-low').textContent = `H:${formatTemp(today.temp.max)} / L:${formatTemp(today.temp.min)}`;
+                    document.getElementById('widget-icon').src = `https://openweathermap.org/img/wn/${current.weather[0].icon}@2x.png`;
+
+                    const hourlyContainer = document.getElementById('widget-hourly-container');
+                    hourlyContainer.innerHTML = hourly.slice(1, 5).map(hour => `
+                        <div class="flex flex-col items-center text-xs">
+                            <p class="font-semibold">${new Date(hour.dt * 1000).toLocaleTimeString([], { hour: 'numeric' })}</p>
+                            <img src="https://openweathermap.org/img/wn/${hour.weather[0].icon}.png" class="w-10 h-10"/>
+                            <p class="font-bold text-base">${formatTemp(hour.temp)}</p>
+                        </div>
+                    `).join('');
+
+                } catch (error) {
+                    console.error("Widget Error:", error);
+                    showError("Error");
+                }
+            }
+            
+            fetchData();
+            // Set an interval to refresh the widget data every 30 minutes
+            setInterval(fetchData, 30 * 60 * 1000);
+        });
+    </script>
+</body>
+</html>
