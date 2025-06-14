@@ -12,3 +12,8 @@ dist-ssr
 # IDE
 .idea
 .vscode
+
+# Ignore user-specific credential, token, and config files for plugins
+plugins/**/token.json
+plugins/**/credentials.json
+plugins/**/calendar_config.json

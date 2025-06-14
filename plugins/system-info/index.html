@@ -33,18 +33,16 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => { // Made async to await IPC calls
             try {
-                // Check if the API bridge exists at all
                 if (typeof window.electronAPI === 'undefined') {
                     throw new Error('window.electronAPI is undefined. The preload script is failing to attach to the webview.');
                 }
                 
-                const os = window.electronAPI.os;
+                const osAPI = window.electronAPI.os; // Renamed to osAPI to avoid conflict with Node's 'os'
 
-                // Check if the 'os' part of the API exists
-                if (typeof os === 'undefined') {
-                    throw new Error('window.electronAPI.os is undefined. The API is incomplete.');
+                if (typeof osAPI === 'undefined' || Object.keys(osAPI).length === 0) {
+                    throw new Error('window.electronAPI.os is undefined or empty. The OS API is incomplete.');
                 }
 
                 function formatBytes(bytes) {
@@ -64,19 +62,19 @@
                     return `${days}d ${hrs}h ${mnts}m`;
                 }
 
-                document.getElementById('hostname').textContent = os.hostname();
-                document.getElementById('platform').textContent = os.platform();
-                document.getElementById('type').textContent = os.type();
-                document.getElementById('release').textContent = os.release();
-                document.getElementById('uptime').textContent = formatUptime(os.uptime());
-                document.getElementById('totalmem').textContent = formatBytes(os.totalmem());
-                document.getElementById('freemem').textContent = formatBytes(os.freemem());
-                const cpus = os.cpus();
+                // Call the new IPC-based OS API methods
+                document.getElementById('hostname').textContent = await osAPI.hostname();
+                document.getElementById('platform').textContent = await osAPI.platform();
+                document.getElementById('type').textContent = await osAPI.type();
+                document.getElementById('release').textContent = await osAPI.release();
+                document.getElementById('uptime').textContent = formatUptime(await osAPI.uptime());
+                document.getElementById('totalmem').textContent = formatBytes(await osAPI.totalmem());
+                document.getElementById('freemem').textContent = formatBytes(await osAPI.freemem());
+                const cpus = await osAPI.cpus();
                 document.getElementById('cpu-model').textContent = cpus[0].model;
                 document.getElementById('cpu-cores').textContent = cpus.length;
 
             } catch (error) {
-                // If any error occurs, wipe the plugin UI and display the error message
                 const body = document.querySelector('body');
                 body.innerHTML = `<div style="color: #fca5a5; background-color: #450a0a; border: 1px solid #991b1b; padding: 20px; border-radius: 8px;">
                     <h2 style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">Plugin Failed to Load</h2>

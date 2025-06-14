@@ -10,6 +10,10 @@
     "preview": "electron-vite preview"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^6.5.2",
+    "@fortawesome/free-solid-svg-icons": "^6.5.2",
+    "@fortawesome/react-fontawesome": "^0.2.2",
+    "@heroicons/react": "^2.1.4",
     "axios": "^1.7.2",
     "googleapis": "^105.0.0",
     "lottie-web": "^5.12.2",

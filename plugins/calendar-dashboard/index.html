@@ -5,14 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calendar Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@lottiefiles/dotlottie-web/+esm"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #f9fafb; }
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #f9fafb; overflow-y: auto; }
         .card { background-color: #1f2937; border: 1px solid #374151; border-radius: 0.5rem; }
-        .event-card { border-left-width: 4px; transition: background-color: 0.2s; }
+        .event-card { border-left-width: 4px; transition: background-color 0.2s; }
         .event-card:hover { background-color: #374151; }
         .event-accepted { border-left-color: #4f46e5; }
         .event-unaccepted { border-left-color: #6b7280; opacity: 0.7; }
         .modal-backdrop { background-color: rgba(0,0,0,0.7); }
+        /* Style for the join button */
+        .join-button {
+            background-color: #22c55e; /* green-500 */
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .join-button:hover {
+            background-color: #16a34a; /* green-600 */
+        }
+        .join-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        /* Style for collapsible section */
+        .collapsible-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #374151;
+        }
+        .collapsible-arrow {
+            transition: transform 0.2s ease-in-out;
+        }
+        .collapsible-arrow.collapsed {
+            transform: rotate(-90deg);
+        }
+        .collapsible-content.hidden {
+            display: none;
+        }
+
+        /* Flexible grid for daily agenda cards */
+        #agenda-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Auto-fit columns, min width 280px */
+            gap: 1rem; /* 16px */
+        }
+        /* Styles for Lottie animation container */
+        #lottie-animation-container {
+            width: 100px; /* Adjust size as needed */
+            height: 100px; /* Adjust size as needed */
+            margin: 0 auto;
+            overflow: hidden; 
+        }
+        /* Ensure the dotlottie-player element itself has correct dimensions when created */
+        dotlottie-player {
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
 <body class="p-4">
@@ -20,18 +75,28 @@
     <div id="auth-view" class="hidden h-full flex flex-col items-center justify-center text-center">
         <div class="card p-8 max-w-md">
             <h2 class="text-2xl font-bold mb-2">Connect to Google Calendar</h2>
-            <p class="mb-4 text-gray-400">Enter the credentials you generated from the Google Cloud Console.</p>
+            <p class="mb-4 text-gray-400">Enter the credentials from Google Cloud Console. These will be securely stored.</p>
             <div class="space-y-4 mb-4">
                 <input type="password" id="client-id" placeholder="Enter your Google Client ID" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white">
                 <input type="password" id="client-secret" placeholder="Enter your Google Client Secret" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white">
             </div>
-            <button id="auth-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">Authenticate with Google</button>
+            <button id="save-credentials-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">Save Credentials & Authenticate</button>
+            <p id="auth-message" class="mt-4 text-sm text-yellow-400 hidden"></p>
         </div>
     </div>
 
     <div id="main-view" class="hidden space-y-6">
-        <div id="next-meeting-container"></div>
-        <div id="agenda-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"></div>
+        <div id="next-meeting-container" class="card p-4 flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-bold text-white mb-2">Next Upcoming Meeting</h3>
+                <p id="next-meeting-details" class="text-gray-300">Loading...</p>
+                <div id="lottie-animation-container" class="hidden"></div>
+            </div>
+            <button id="join-next-meeting-btn" class="join-button hidden">Join Meeting</button>
+        </div>
+        
+        <div id="agenda-grid">
+            </div>
     </div>
 
     <div id="message-view" class="h-full flex items-center justify-center text-center">
@@ -39,149 +104,532 @@
     </div>
 
     <div id="details-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center modal-backdrop">
-        <div class="card w-full max-w-lg p-6 relative" id="details-modal-inner"></div>
+        <div class="card w-full max-w-lg p-6 relative" id="details-modal-inner">
+            <button onclick="closeModal('details-modal')" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl">&times;</button>
+            <h2 id="event-detail-title" class="text-xl font-bold text-white mb-2"></h2>
+            <p id="event-detail-time" class="text-indigo-300 text-sm mb-2"></p>
+            <p id="event-detail-location" class="text-gray-400 text-sm mb-2"></p>
+            <div id="event-detail-description" class="text-gray-300 text-sm mb-4"></div>
+            <a id="event-detail-hangout" href="#" target="_blank" class="inline-block bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-2 px-4 rounded-lg text-sm mr-2">View in Google Calendar</a>
+            <button id="event-detail-join-btn" class="join-button text-sm">Join Meeting</button>
+        </div>
     </div>
+
     <div id="calendars-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center modal-backdrop">
         <div class="card w-full max-w-md p-6">
             <h2 class="text-xl font-bold mb-4">Manage Calendars</h2>
-            <div id="calendars-list" class="space-y-2 max-h-96 overflow-y-auto"></div>
+            <div id="calendars-list" class="space-y-2 max-h-96 overflow-y-auto">
+                </div>
             <div class="flex justify-between items-center mt-6">
                  <button id="logout-button" class="px-4 py-2 bg-rose-600 text-white rounded-md hover:bg-rose-700 text-sm">Logout & Clear Data</button>
-                 <button onclick="closeModal('calendars-modal')" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Close</button>
+                 <button onclick="closeModal('calendars-modal')" id="close-calendars-modal-button" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Close</button>
             </div>
         </div>
     </div>
 
-<script>
-    const { google } = require('googleapis');
-    const http = require('http');
-    const url = require('url');
-    const path = require('path');
-    const fs = require('fs').promises;
-    const { shell } = require('electron');
+<script type="module">
+    // No longer importing DotLottie class directly here; the web component script defines it globally
+    // import { DotLottie } from "https://cdn.jsdelivr.net/npm/@lottiefiles/dotlottie-web/+esm"; 
 
-    const PLUGIN_DIR = __dirname;
-    const TOKEN_PATH = path.join(PLUGIN_DIR, 'token.json');
-    const CREDS_PATH = path.join(PLUGIN_DIR, 'credentials.json');
-    const CALENDAR_CONFIG_PATH = path.join(PLUGIN_DIR, 'calendar_config.json');
-    const REFRESH_INTERVAL = 5 * 60 * 1000;
-    const REDIRECT_URI = 'http://localhost:8888';
+    const PLUGIN_ID = 'calendar-dashboard';
+    const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-    let oAuth2Client;
+    // UI Elements
+    const authView = document.getElementById('auth-view');
+    const mainView = document.getElementById('main-view');
+    const messageView = document.getElementById('message-view');
+    const messageText = document.getElementById('message-text');
+    const authMessage = document.getElementById('auth-message');
+    const clientIdInput = document.getElementById('client-id');
+    const clientSecretInput = document.getElementById('client-secret');
+    const saveCredentialsButton = document.getElementById('save-credentials-button');
+    const logoutButton = document.getElementById('logout-button');
+    const closeCalendarsModalButton = document.getElementById('close-calendars-modal-button');
 
-    async function main() {
-        try {
-            const credentials = await loadJSON(CREDS_PATH);
-            if (!credentials) {
-                switchView('auth');
-                document.getElementById('auth-button').onclick = handleAuthClick;
-                return;
-            }
+    const nextMeetingContainer = document.getElementById('next-meeting-container');
+    const nextMeetingDetails = document.getElementById('next-meeting-details');
+    const joinNextMeetingBtn = document.getElementById('join-next-meeting-btn');
+    const agendaGrid = document.getElementById('agenda-grid');
 
-            oAuth2Client = new google.auth.OAuth2(credentials.clientId, credentials.clientSecret, REDIRECT_URI);
-            const tokens = await loadJSON(TOKEN_PATH);
+    const detailsModal = document.getElementById('details-modal');
+    const calendarsModal = document.getElementById('calendars-modal');
+    const calendarsList = document.getElementById('calendars-list');
 
-            if (!tokens) {
-                getNewToken(oAuth2Client);
-                return;
-            }
+    const eventDetailJoinBtn = document.getElementById('event-detail-join-btn'); 
 
-            oAuth2Client.setCredentials(tokens);
-            addCalendarManagementButton();
+    // Lottie animation elements
+    const lottieAnimationContainer = document.getElementById('lottie-animation-container');
+    let currentLottiePlayerElement = null; // To hold the dynamically created <dotlottie-player> instance
 
-            await fetchAndRender();
-            setInterval(fetchAndRender, REFRESH_INTERVAL);
+    // State
+    let selectedCalendars = []; 
+    let refreshInterval;
 
-        } catch (error) {
-            handleError(error);
-        }
+    // Helper Functions
+    function switchView(view) {
+        authView.classList.add('hidden');
+        mainView.classList.add('hidden');
+        messageView.classList.add('hidden');
+        if (view === 'auth') authView.classList.remove('hidden');
+        else if (view === 'main') mainView.classList.remove('hidden');
+        else if (view === 'message') messageView.classList.remove('hidden');
     }
 
-    async function fetchAndRender() {
-        // --- This function is a placeholder for the full UI rendering logic ---
-        // It's kept brief here but would contain the logic to populate the "Next Meeting" and "Agenda" views.
-        switchView('loading');
-        messageText.textContent = "Fetching calendar events...";
-        const calendar = google.calendar({version: 'v3', auth: oAuth2Client});
-        const calendarList = await calendar.calendarList.list();
-        
-        switchView('main');
-        document.getElementById('main-view').innerHTML = `
-            <div class="card p-8 text-center">
-                <h2 class="text-2xl text-green-400 font-bold">Successfully Connected!</h2>
-                <p class="text-gray-300 mt-2">Found ${calendarList.data.items.length} calendars.</p>
-                <p class="text-gray-400 mt-4">UI rendering logic would be implemented here.</p>
+    function showMessage(text, isError = false) {
+        switchView('message');
+        messageText.innerHTML = isError ? `<span class="text-red-400 font-bold">Error:</span> <pre class="text-sm text-red-400 whitespace-pre-wrap">${text}</pre>` : text;
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    function formatDate(date) {
+        return new Date(date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    function formatTime(date) {
+        if (!date) return ''; 
+        const d = new Date(date);
+        if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0) {
+             return null; 
+        }
+        return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function getMeetingLink(event) {
+        if (event.hangoutLink) {
+            return event.hangoutLink;
+        }
+        const text = (event.location || '') + ' ' + (event.description || '');
+        const zoomRegex = /(https?:\/\/[^\s]*zoom.us\/j\/[^\s]*)/i;
+        const teamsRegex = /(https?:\/\/[^\s]*teams.microsoft.com\/l\/meetup-join\/[^\s]*)/i;
+        const meetRegex = /(https?:\/\/[^\s]*meet.google.com\/[^\s]*)/i;
+
+        const zoomMatch = text.match(zoomRegex);
+        if (zoomMatch) return zoomMatch[0];
+        const teamsMatch = text.match(teamsRegex);
+        if (teamsMatch) return teamsMatch[0];
+        const meetMatch = text.match(meetRegex);
+        if (meetMatch) return meetMatch[0];
+
+        if (event.conferenceData && event.conferenceData.entryPoints && event.conferenceData.entryPoints.length > 0) {
+            const videoEntry = event.conferenceData.entryPoints.find(ep => ep.entryPointType === 'video');
+            if (videoEntry && videoEntry.uri) {
+                return videoEntry.uri;
+            }
+        }
+        return null;
+    }
+
+    function renderEvent(event) {
+        const isAllDay = !event.start.dateTime;
+        const startTime = formatTime(event.start.dateTime || event.start.date);
+        const isAccepted = event.attendees?.some(a => a.self && a.responseStatus === 'accepted') && event.status !== 'cancelled' || false;
+        const meetingLink = getMeetingLink(event);
+
+        return `
+            <div class="event-card card p-3 mb-2 flex flex-col ${isAccepted ? 'event-accepted' : 'event-unaccepted'}" 
+                 onclick="showEventDetails(
+                     ${encodeURIComponent(JSON.stringify(event))} 
+                 )">
+                <h4 class="font-bold text-md truncate" title="${event.summary || 'No Title'}">${event.summary || 'No Title'}</h4>
+                ${isAllDay ? '' : `<p class="text-sm text-gray-300">${startTime}</p>`} 
+                <p class="text-xs text-gray-400 mt-1 truncate">${event.location || ''}</p>
+                ${meetingLink ? `<button class="join-button text-xs mt-2" onclick="event.stopPropagation(); window.electronAPI.openExternalLink('${meetingLink}')">Join</button>` : ''}
             </div>
         `;
     }
 
-    async function handleAuthClick() {
-        const clientId = document.getElementById('client-id').value;
-        const clientSecret = document.getElementById('client-secret').value;
-        if (!clientId || !clientSecret) return alert('Client ID and Secret are required.');
-        await saveJSON(CREDS_PATH, { clientId, clientSecret });
-        main();
-    }
+    // Function to dynamically create and display Lottie animation
+    function loadLottieAnimation(containerId, animationSrc) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
 
-    function getNewToken(client) {
-        const authUrl = client.generateAuthUrl({
-            access_type: 'offline', prompt: 'consent',
-            scope: ['https://www.googleapis.com/auth/calendar.readonly'],
-        });
+        // Clear previous player element if it exists
+        if (currentLottiePlayerElement) {
+            currentLottiePlayerElement.remove();
+            currentLottiePlayerElement = null;
+        }
         
-        switchView('message');
-        messageText.textContent = 'Awaiting authorization in your browser...';
-        shell.openExternal(authUrl);
+        container.classList.remove('hidden'); // Ensure container is visible
 
-        const server = http.createServer(async (req, res) => {
+        // Dynamically create the <dotlottie-player> element
+        const player = document.createElement('dotlottie-player');
+        player.setAttribute('src', animationSrc);
+        player.setAttribute('loop', ''); // Boolean attributes are set as empty string
+        player.setAttribute('autoplay', '');
+        player.setAttribute('mode', 'normal'); // Optional: 'normal' or 'bounce'
+        player.style.width = '100%'; // Ensure it takes full size of its container
+        player.style.height = '100%';
+        
+        container.appendChild(player);
+        currentLottiePlayerElement = player; // Store reference
+    }
+
+    // Function to clear and hide Lottie animation
+    function clearLottieAnimation(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        if (currentLottiePlayerElement) {
+            currentLottiePlayerElement.remove(); // Remove player from DOM
+            currentLottiePlayerElement = null;
+        }
+        container.classList.add('hidden'); // Hide the container
+    }
+
+    // Core Logic
+    async function initPlugin() {
+        try {
+            switchView('message');
+            messageText.textContent = "Checking Google Calendar authentication status...";
+
+            const authStatus = await window.electronAPI.invoke('plugin:service-call', {
+                pluginId: PLUGIN_ID,
+                method: 'checkAuthStatus'
+            });
+
+            if (!authStatus.isConfigured) {
+                switchView('auth');
+                if (authStatus.message) authMessage.textContent = authStatus.message;
+                authMessage.classList.remove('hidden');
+                clientIdInput.value = authStatus.clientId || '';
+                clientSecretInput.value = authStatus.clientSecret || '';
+                return;
+            }
+
+            if (!authStatus.isAuthenticated) {
+                showMessage('Authentication required. Please click "Save Credentials & Authenticate" to start the process in your browser.');
+                switchView('auth');
+                authMessage.textContent = authStatus.message || 'Authentication token is missing or expired.';
+                authMessage.classList.remove('hidden');
+                clientIdInput.value = authStatus.clientId || '';
+                clientSecretInput.value = authStatus.clientSecret || '';
+                return;
+            }
+
+            await fetchAndRenderEvents();
+
+            if (refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(fetchAndRenderEvents, REFRESH_INTERVAL_MS);
+            
+        } catch (error) {
+            console.error("Calendar Plugin Init Error:", error);
+            showMessage(`Failed to initialize: ${error.message || error}`, true);
+        }
+    }
+
+    async function handleSaveCredentialsAndAuth() {
+        const clientId = clientIdInput.value.trim();
+        const clientSecret = clientSecretInput.value.trim();
+
+        if (!clientId || !clientSecret) {
+            authMessage.textContent = 'Client ID and Client Secret are required.';
+            authMessage.classList.remove('hidden');
+            return;
+        }
+
+        authMessage.textContent = 'Saving credentials and initiating authentication...';
+        authMessage.classList.remove('hidden');
+
+        try {
+            const result = await window.electronAPI.invoke('plugin:service-call', {
+                pluginId: PLUGIN_ID,
+                method: 'saveCredentialsAndGetAuthUrl',
+                params: { clientId, clientSecret }
+            });
+
+            if (result.authUrl) {
+                showMessage('Awaiting authorization in your browser...', false);
+            } else {
+                authMessage.textContent = 'Authentication failed. Please check your credentials.';
+                authMessage.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error("Authentication Error:", error);
+            authMessage.innerHTML = `Error: ${error.message}`;
+            authMessage.classList.remove('hidden');
+        }
+    }
+
+    async function fetchAndRenderEvents() {
+        try {
+            switchView('message');
+            messageText.textContent = "Fetching calendar events...";
+
+            const eventsData = await window.electronAPI.invoke('plugin:service-call', {
+                pluginId: PLUGIN_ID,
+                method: 'getEvents',
+                params: {} 
+            });
+
+            const { upcomingEvents, displayDateKeys } = eventsData; 
+
+            // Filter for timed events that are for today
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const todayDateKey = today.toISOString().split('T')[0];
+
+            const nextUpcomingTimedMeeting = upcomingEvents
+                .filter(event => event.start.dateTime && 
+                                 new Date(event.start.dateTime).toISOString().split('T')[0] === todayDateKey) 
+                .find(event => true); 
+
+            // --- Next Upcoming Meeting Card ---
+            if (nextUpcomingTimedMeeting) {
+                nextMeetingDetails.innerHTML = `
+                    <h4 class="text-xl font-bold text-white mb-1 truncate">${nextUpcomingTimedMeeting.summary || 'No Title'}</h4>
+                    <p class="text-indigo-300 text-sm">${formatTime(nextUpcomingTimedMeeting.start.dateTime)} on ${formatDate(nextUpcomingTimedMeeting.start.dateTime)}</p>
+                    ${nextUpcomingTimedMeeting.location ? `<p class="text-gray-400 text-xs truncate">${nextUpcomingTimedMeeting.location}</p>` : ''}
+                `;
+                const nextMeetingLink = getMeetingLink(nextUpcomingTimedMeeting);
+                if (nextMeetingLink) {
+                    joinNextMeetingBtn.classList.remove('hidden');
+                    joinNextMeetingBtn.onclick = () => window.electronAPI.openExternalLink(nextMeetingLink);
+                } else {
+                    joinNextMeetingBtn.classList.add('hidden');
+                }
+                clearLottieAnimation('lottie-animation-container'); // Hide/clear Lottie if meeting is shown
+            } else {
+                nextMeetingDetails.innerHTML = `
+                    <p class="text-gray-400 text-center">Hurray! No more Meetings!</p> 
+                `; 
+                joinNextMeetingBtn.classList.add('hidden');
+                loadLottieAnimation('lottie-animation-container', 'https://lottie.host/embed/d3b1a101-09ef-4848-9382-4cd392cb761f/XdNHptBQF8.json'); // Show Lottie
+            }
+
+            // --- Agenda Grid Rendering ---
+            const eventsByDay = {};
+            upcomingEvents.forEach(event => {
+                const eventDate = new Date(event.start.dateTime || event.start.date);
+                const dateKey = eventDate.toISOString().split('T')[0]; 
+                if (!eventsByDay[dateKey]) {
+                    eventsByDay[dateKey] = {
+                        allDay: [],
+                        timed: []
+                    };
+                }
+                if (event.start.dateTime) { 
+                    eventsByDay[dateKey].timed.push(event);
+                } else { 
+                    eventsByDay[dateKey].allDay.push(event);
+                }
+            });
+            
+            let agendaHtml = '';
+
+            displayDateKeys.forEach(dateKey => { 
+                const dayEvents = eventsByDay[dateKey] || { allDay: [], timed: [] }; 
+                const displayDate = new Date(dateKey + 'T00:00:00'); 
+                const dayName = displayDate.toLocaleDateString(undefined, { weekday: 'long' });
+                const formattedDate = displayDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+
+                let dayCardHtml = `
+                    <div class="day-card card p-4 space-y-4 flex flex-col">
+                        <h3 class="text-lg font-bold text-white border-b border-gray-700 pb-2 mb-2">
+                            ${dayName}, ${formattedDate}
+                        </h3>
+                `;
+
+                if (dayEvents.allDay.length > 0) {
+                    const isAllDayCollapsed = localStorage.getItem(`allDayCollapsed_${dateKey}`) === 'true'; 
+
+                    dayCardHtml += `
+                        <div id="all-day-section-${dateKey}">
+                            <div class="collapsible-header" data-target="all-day-events-content-${dateKey}" data-collapsed="${isAllDayCollapsed}">
+                                <h4 class="text-md font-semibold text-indigo-300">All Day Events</h4>
+                                <svg class="w-5 h-5 text-gray-400 collapsible-arrow ${isAllDayCollapsed ? 'collapsed' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
+                            <div id="all-day-events-content-${dateKey}" class="collapsible-content ${isAllDayCollapsed ? 'hidden' : ''}">
+                                ${dayEvents.allDay.map(renderEvent).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                dayEvents.timed.sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime());
+
+                if (dayEvents.timed.length > 0) {
+                    dayCardHtml += `
+                        <div>
+                            <h4 class="text-md font-semibold text-indigo-300 mb-2">Meetings</h4>
+                            ${dayEvents.timed.map(renderEvent).join('')}
+                        </div>
+                    `;
+                }
+                
+                if (dayEvents.allDay.length === 0 && dayEvents.timed.length === 0) {
+                    dayCardHtml += `<p class="text-gray-400 text-sm">Hurray! No more Meetings!</p>`; 
+                } else if (dayEvents.timed.length === 0 && dayEvents.allDay.length > 0) {
+                    dayCardHtml += `<p class="text-gray-400 text-sm">No timed meetings for this day.</p>`;
+                }
+
+
+                dayCardHtml += `</div>`;
+                agendaHtml += dayCardHtml;
+            });
+            
+            agendaGrid.innerHTML = agendaHtml;
+            if (agendaGrid.innerHTML === '') {
+                agendaGrid.innerHTML = '<p class="col-span-full text-center text-gray-400 p-4">No events found for selected calendars.</p>';
+            }
+
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const targetId = header.dataset.target;
+                    const content = document.getElementById(targetId);
+                    const isCollapsed = header.dataset.collapsed === 'true';
+
+                    if (isCollapsed) {
+                        content.classList.remove('hidden');
+                        header.dataset.collapsed = 'false';
+                        header.querySelector('.collapsible-arrow').classList.remove('collapsed');
+                    } else {
+                        content.classList.add('hidden');
+                        header.dataset.collapsed = 'true';
+                        header.querySelector('.collapsible-arrow').classList.add('collapsed');
+                    }
+                    localStorage.setItem(`allDayCollapsed_${header.dataset.target.replace('all-day-events-content-', '')}`, header.dataset.collapsed);
+                });
+            });
+
+            switchView('main');
+
+        } catch (error) {
+            console.error("Failed to fetch and render events:", error);
+            showMessage(`Could not load calendar events: ${error.message || error}`, true);
+        }
+    }
+
+    function showEventDetails(eventJson) {
+        const event = JSON.parse(decodeURIComponent(eventJson));
+        
+        document.getElementById('event-detail-title').textContent = event.summary || 'No Title';
+        
+        const eventDetailStartTime = formatTime(event.start.dateTime || event.start.date);
+        const eventDetailEndTime = formatTime(event.end.dateTime || event.end.date);
+        
+        document.getElementById('event-detail-time').textContent = 
+            eventDetailStartTime ? `${eventDetailStartTime}${eventDetailEndTime ? ' - ' + eventDetailEndTime : ''} on ${formatDate(event.start.dateTime || event.start.date)}` : `All Day on ${formatDate(event.start.date)}`;
+
+
+        document.getElementById('event-detail-location').textContent = event.location || '';
+        document.getElementById('event-detail-description').innerHTML = event.description || 'No description available.';
+        
+        const calendarLink = document.getElementById('event-detail-hangout'); 
+        if (event.htmlLink) {
+            calendarLink.href = event.htmlLink;
+            calendarLink.textContent = "View in Google Calendar";
+            calendarLink.classList.remove('hidden');
+        } else {
+            calendarLink.classList.add('hidden');
+        }
+
+        const joinButton = document.getElementById('event-detail-join-btn');
+        const meetingLink = getMeetingLink(event);
+        if (meetingLink) {
+            joinButton.onclick = () => window.electronAPI.openExternalLink(meetingLink);
+            joinButton.classList.remove('hidden');
+        } else {
+            joinButton.classList.add('hidden');
+        }
+        
+        detailsModal.classList.remove('hidden');
+    }
+
+    async function openCalendarsModal() {
+        try {
+            const allCalendars = await window.electronAPI.invoke('plugin:service-call', {
+                pluginId: PLUGIN_ID,
+                method: 'getCalendarList'
+            });
+
+            const settings = await window.electronAPI.getPluginSettings(PLUGIN_ID);
+            selectedCalendars = settings.syncedCalendars ? JSON.parse(settings.syncedCalendars) : [];
+
+            calendarsList.innerHTML = '';
+            if (allCalendars.length === 0) {
+                calendarsList.innerHTML = '<p class="text-gray-400">No calendars found for your Google account.</p>';
+            }
+            allCalendars.forEach(cal => {
+                const isChecked = selectedCalendars.includes(cal.id);
+                const checkboxContainer = document.createElement('label');
+                checkboxContainer.className = 'flex items-center space-x-2 text-white cursor-pointer';
+                checkboxContainer.innerHTML = `
+                    <input type="checkbox" data-id="${cal.id}" class="form-checkbox h-5 w-5 text-indigo-600 bg-gray-700 border-gray-600 rounded" ${isChecked ? 'checked' : ''}>
+                    <span>${cal.summary} ${cal.primary ? '(Primary)' : ''}</span>
+                `;
+                checkboxContainer.querySelector('input').addEventListener('change', async (e) => {
+                    const calendarId = e.target.dataset.id;
+                    if (e.target.checked) {
+                        if (!selectedCalendars.includes(calendarId)) {
+                            selectedCalendars.push(calendarId);
+                        }
+                    } else {
+                        selectedCalendars = selectedCalendars.filter(id => id !== calendarId);
+                    }
+                    await window.electronAPI.setPluginSetting(PLUGIN_ID, 'syncedCalendars', JSON.stringify(selectedCalendars));
+                    fetchAndRenderEvents();
+                });
+                calendarsList.appendChild(checkboxContainer);
+            });
+
+            calendarsModal.classList.remove('hidden');
+        } catch (error) {
+            console.error("Error opening calendars modal:", error);
+            showMessage(`Could not load calendar list: ${error.message || error}`, true);
+        }
+    }
+
+    async function handleLogout() {
+        if (confirm('Are you sure you want to log out and clear all Google Calendar data? This will require re-authentication.')) {
             try {
-                const code = new url.URL(req.url, REDIRECT_URI).searchParams.get('code');
-                res.end('Authentication successful! You can close this tab.');
-                server.close();
-                const { tokens } = await client.getToken(code);
-                await saveJSON(TOKEN_PATH, tokens);
-                await fetchAndSaveCalendarList(client);
-                window.location.reload();
-            } catch (e) { handleError(e); res.end('Authentication failed.'); }
-        }).listen(8888);
+                await window.electronAPI.invoke('plugin:service-call', {
+                    pluginId: PLUGIN_ID,
+                    method: 'clearAuthData'
+                });
+                await initPlugin();
+                closeModal('calendars-modal');
+                authMessage.textContent = 'Successfully logged out. Please re-authenticate.';
+                authMessage.classList.remove('hidden');
+            } catch (error) {
+                console.error("Error logging out:", error);
+                showMessage(`Failed to log out: ${error.message || error}`, true);
+            }
+        }
     }
-    
-    async function fetchAndSaveCalendarList(client) {
-        const calendar = google.calendar({version: 'v3', auth: client});
-        const res = await calendar.calendarList.list();
-        const calendars = res.data.items.map(c => ({ id: c.id, summary: c.summary, primary: !!c.primary, synced: !!c.primary }));
-        await saveJSON(CALENDAR_CONFIG_PATH, calendars);
-    }
-    
-    function switchView(view) {
-        ['auth', 'main', 'message'].forEach(v => document.getElementById(`${v}-view`).classList.add('hidden'));
-        if (view) document.getElementById(`${view}-view`).classList.remove('hidden');
-    }
-    function handleError(error) {
-        console.error(error);
-        switchView('message');
-        messageText.innerHTML = `<h2 class="text-red-400 font-bold">An Error Occurred</h2><pre class="text-left text-xs text-gray-400 mt-2 whitespace-pre-wrap">${error.stack}</pre>`;
-    }
-    async function loadJSON(filePath) { try { return JSON.parse(await fs.readFile(filePath)); } catch (e) { return null; } }
-    async function saveJSON(filePath, data) { await fs.writeFile(filePath, JSON.stringify(data, null, 2)); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-    function addCalendarManagementButton() {
-        const header = document.querySelector('header');
-        if (!header) return;
-        let manageButton = document.getElementById('manage-calendars-btn');
-        if (manageButton) return;
-        manageButton = document.createElement('button');
-        manageButton.id = 'manage-calendars-btn';
-        manageButton.className = "ml-4 p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white";
-        manageButton.title = "Manage Calendars";
-        manageButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0h18M12 12.75h.008v.008H12v-.008Z" /></svg>`;
-        manageButton.onclick = openCalendarModal;
-        const buttonContainer = header.querySelector('div.flex');
-        if (buttonContainer) buttonContainer.appendChild(manageButton);
-    }
-    async function openCalendarModal() { /* ... implementation ... */ }
 
-    main();
+    // Event Listeners
+    saveCredentialsButton.addEventListener('click', handleSaveCredentialsAndAuth);
+    logoutButton.addEventListener('click', handleLogout);
+    closeCalendarsModalButton.addEventListener('click', () => closeModal('calendars-modal'));
+    
+    window.electronAPI.on('plugin-modal-request', (data) => {
+        if (data.modalType === 'calendars-modal') {
+            openCalendarsModal();
+        }
+    });
+
+    window.electronAPI.on('auth-success', async (data) => {
+        if (data.pluginId === PLUGIN_ID) {
+            authMessage.textContent = 'Authentication successful! Fetching calendar list...';
+            authMessage.classList.remove('hidden');
+            await initPlugin();
+        }
+    });
+
+    window.electronAPI.on('auth-failure', (data) => {
+        if (data.pluginId === PLUGIN_ID) {
+            authMessage.innerHTML = `Authentication failed: <pre>${data.error || 'Unknown error'}</pre>`;
+            authMessage.classList.remove('hidden');
+            switchView('auth');
+        }
+    });
+
+    // Initial plugin load
+    initPlugin();
 </script>
 </body>
 </html>

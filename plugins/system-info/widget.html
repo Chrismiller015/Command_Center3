@@ -9,7 +9,6 @@
     </style>
 </head>
 <body class="p-4">
-    <!-- This widget only shows the 'System' card -->
     <div class="bg-gray-800 p-4 rounded-lg h-full text-sm">
         <h2 class="text-md font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">System</h2>
         <p><strong>Hostname:</strong> <span id="hostname"></span></p>
@@ -19,12 +18,12 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => { // Made async to await IPC calls
             try {
                 if (typeof window.electronAPI === 'undefined') {
                     throw new Error('window.electronAPI is undefined.');
                 }
-                const os = window.electronAPI.os;
+                const osAPI = window.electronAPI.os; // Renamed to osAPI
 
                 function formatUptime(seconds) {
                     const days = Math.floor(seconds / (3600*24));
@@ -33,10 +32,11 @@
                     return `${days}d ${hrs}h`;
                 }
 
-                document.getElementById('hostname').textContent = os.hostname();
-                document.getElementById('platform').textContent = os.platform();
-                document.getElementById('type').textContent = os.type();
-                document.getElementById('uptime').textContent = formatUptime(os.uptime());
+                // Call the new IPC-based OS API methods
+                document.getElementById('hostname').textContent = await osAPI.hostname();
+                document.getElementById('platform').textContent = await osAPI.platform();
+                document.getElementById('type').textContent = await osAPI.type();
+                document.getElementById('uptime').textContent = formatUptime(await osAPI.uptime());
 
             } catch (error) {
                 const body = document.querySelector('body');

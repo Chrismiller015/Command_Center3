@@ -1,5 +1,4 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const os = require('os');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // General App APIs
@@ -17,33 +16,58 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Lottie Animation Data Getter
   getLottieAnimation: (pluginId, animationPath) => ipcRenderer.invoke('get-lottie-animation', pluginId, animationPath),
   
-  // Plugin Database Query APIs
+  // Plugin Database Query APIs (for custom plugin tables)
   dbRun: (pluginId, sql, params = []) => ipcRenderer.invoke('db-run-query', pluginId, sql, params),
   dbAll: (pluginId, sql, params = []) => ipcRenderer.invoke('db-all-query', pluginId, sql, params),
 
-  // Exposing Node Modules (As requested for full access)
+  // Database Manager APIs (Global)
+  dbGetAllTables: () => ipcRenderer.invoke('db-get-all-tables'),
+  dbGetTableContent: (tableName) => ipcRenderer.invoke('db-get-table-content', tableName),
+  dbDropTable: (tableName) => ipcRenderer.invoke('db-drop-table', tableName),
+  dbDeleteRow: (tableName, rowid) => ipcRenderer.invoke('db-delete-row', tableName, rowid),
+
+  // Generic Plugin Service Call API (for plugin backend services)
+  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args), 
+  on: (channel, callback) => {
+    const validChannels = ['auth-success', 'auth-failure', 'plugin-modal-request']; 
+    if (validChannels.includes(channel)) {
+      const wrappedCallback = (event, ...args) => callback(...args);
+      ipcRenderer.on(channel, wrappedCallback);
+      return () => ipcRenderer.removeListener(channel, wrappedCallback);
+    }
+  },
+  'plugin:service-call': (payload) => ipcRenderer.invoke('plugin:service-call', payload),
+
+  // IPC call to request main process to open a plugin-specific modal
+  openPluginSpecificModal: (payload) => ipcRenderer.invoke('open-plugin-specific-modal', payload),
+
+  // --- NEW: API to open external links ---
+  openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
+
+  // OS related APIs (now routed via main process for security)
   os: {
-    hostname: () => os.hostname(),
-    type: () => os.type(),
-    platform: () => os.platform(),
-    arch: () => os.arch(),
-    release: () => os.release(),
-    uptime: () => os.uptime(),
-    loadavg: () => os.loadavg(),
-    totalmem: () => os.totalmem(),
-    freemem: () => os.freemem(),
-    cpus: () => os.cpus(),
-    networkInterfaces: () => os.networkInterfaces(),
+    hostname: () => ipcRenderer.invoke('get-os-hostname'),
+    type: () => ipcRenderer.invoke('get-os-type'),
+    platform: () => ipcRenderer.invoke('get-os-platform'),
+    arch: () => ipcRenderer.invoke('get-os-arch'),
+    release: () => ipcRenderer.invoke('get-os-release'),
+    uptime: () => ipcRenderer.invoke('get-os-uptime'),
+    loadavg: () => ipcRenderer.invoke('get-os-loadavg'),
+    totalmem: () => ipcRenderer.invoke('get-os-totalmem'),
+    freemem: () => ipcRenderer.invoke('get-os-freemem'),
+    cpus: () => ipcRenderer.invoke('get-os-cpus'),
+    networkInterfaces: () => ipcRenderer.invoke('get-os-network-interfaces'),
   },
 
   /**
    * Allows any sandboxed plugin to require a Node.js module.
-   * @param {string} moduleName - The name of the module to require (e.g., 'fs', 'path', 'googleapis').
+   * NOTE: This is generally discouraged for security in renderers.
+   * Prefer using plugin backend services (`service.js`) or specific IPC calls.
+   * This is kept for compatibility but its use should be minimized.
+   * @param {string} moduleName - The name of the module to require.
    * @returns {any} The required module.
    */
   require: (moduleName) => {
-    // For security in a multi-user app, you might whitelist modules here.
-    // For your use case, directly requiring is perfect.
-    return require(moduleName);
+    return require(moduleName); 
   }
 });

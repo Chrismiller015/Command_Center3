@@ -4,10 +4,49 @@
   "description": "An at-a-glance agenda view of your Google Calendar.",
   "entryPoint": "index.html",
   "widget": "widget.html",
+  "service": "service.mjs",
   "dependencies": {
     "googleapis": "^105.0.0"
   },
-  "nodeIntegration": true, 
-  "settings": [],
+  "nodeIntegration": false,
+  "pluginButtons": [
+    {
+      "id": "manageCalendars",
+      "label": "Manage Calendars",
+      "icon": "fa-solid-calendar-days",
+      "action": {
+        "type": "openModal",
+        "modalType": "calendars-modal"
+      },
+      "tooltip": "Manage which calendars are synced"
+    }
+  ],
+  "settings": [
+    {
+      "key": "googleClientId",
+      "label": "Google Client ID",
+      "type": "password"
+    },
+    {
+      "key": "googleClientSecret",
+      "label": "Google Client Secret",
+      "type": "password"
+    },
+    {
+      "key": "googleTokens",
+      "label": "Google Auth Tokens (DO NOT EDIT MANUALLY)",
+      "type": "hidden"              
+    },
+    {
+      "key": "calendarList",
+      "label": "Cached Calendar List",
+      "type": "hidden"
+    },
+    {
+      "key": "syncedCalendars",
+      "label": "Selected Synced Calendars",
+      "type": "hidden"
+    }
+  ],
   "tables": []
 }

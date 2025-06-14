@@ -1,14 +1,17 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+// src/main/index.js
+import { app, BrowserWindow, ipcMain, shell, webContents } from 'electron' 
 import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import db from './database.js'
 import pluginManager from './pluginManager.js'
 import path from 'path'
+import { pathToFileURL } from 'url' 
+import os from 'os'
 
 let mainWindow;
-let allPlugins = []; // Cache the loaded plugins list
+let allPlugins = []; 
+const pluginServices = {};
 
-// Function to make IDs SQL-safe
 const sanitizeForSQL = (id) => id.replace(/-/g, '_');
 
 function createWindow() {
@@ -25,7 +28,6 @@ function createWindow() {
     }
   });
 
-  // This listener intelligently configures webviews based on the plugin's manifest
   mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     try {
       const url = new URL(params.src);
@@ -36,23 +38,26 @@ function createWindow() {
         path.normalize(p.path).toLowerCase() === path.normalize(pluginDir).toLowerCase()
       );
       
-      if (plugin && plugin.manifest.nodeIntegration) {
-        // SELF-CONTAINED PLUGIN: Give it full power and no preload script.
-        console.log(`Configuring webview for self-contained plugin: ${plugin.id}`);
-        webPreferences.nodeIntegration = true;
-        webPreferences.contextIsolation = false;
-        delete webPreferences.preload;
+      if (plugin && plugin.manifest.service && !plugin.manifest.nodeIntegration) {
+          console.log(`Configuring webview for service-based plugin (${plugin.id}): Forcing sandboxed environment.`);
+          webPreferences.nodeIntegration = false;
+          webPreferences.contextIsolation = true;
+          webPreferences.preload = join(__dirname, '../preload/index.js');
+      } else if (plugin && plugin.manifest.nodeIntegration) {
+          console.log(`Configuring webview for nodeIntegration plugin: ${plugin.id}`);
+          webPreferences.nodeIntegration = true;
+          webPreferences.contextIsolation = false;
+          delete webPreferences.preload;
       } else {
-        // LEGACY PLUGIN: Give it the standard secure preload script.
-        console.log(`Configuring webview for legacy plugin: ${plugin ? plugin.id : 'Unknown'}`);
-        webPreferences.preload = join(__dirname, '../preload/index.js');
-        // --- ADD THIS LINE BACK ---
-        // This setting was in your original file and is needed for the legacy plugins.
-        webPreferences.sandbox = false;
+          console.log(`Configuring webview for standard plugin (${plugin ? plugin.id : 'Unknown'}): secure preload.`);
+          webPreferences.nodeIntegration = false;
+          webPreferences.contextIsolation = true;
+          webPreferences.preload = join(__dirname, '../preload/index.js');
       }
     } catch (e) {
         console.error("Error in will-attach-webview:", e);
-        // Default to the secure preload script on any error.
+        webPreferences.nodeIntegration = false;
+        webPreferences.contextIsolation = true;
         webPreferences.preload = join(__dirname, '../preload/index.js');
     }
   });
@@ -74,7 +79,6 @@ function createWindow() {
   }
 }
 
-// App lifecycle and IPC handlers remain the same as before
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.electron');
   app.on('browser-window-created', (_, window) => {
@@ -84,9 +88,29 @@ app.whenReady().then(async () => {
   try {
     allPlugins = await pluginManager.loadPlugins();
     console.log(`Loaded ${allPlugins.length} plugins.`);
+    
     await pluginManager.installDependencies(allPlugins);
-    await db.initialize(allPlugins);
+    await db.initialize(allPlugins); 
     console.log('Database initialized successfully.');
+
+    for (const plugin of allPlugins) {
+        if (plugin.manifest.service) {
+            const servicePath = path.join(plugin.path, plugin.manifest.service);
+            const serviceURL = pathToFileURL(servicePath).href;
+            try {
+                const serviceModule = await import(serviceURL);
+                if (serviceModule.init) {
+                    pluginServices[plugin.id] = serviceModule;
+                    serviceModule.init(db, mainWindow); 
+                } else {
+                    console.warn(`[Main Process] Plugin service ${plugin.id} found at ${servicePath}, but no 'init' function exported.`);
+                }
+            } catch (serviceError) {
+                console.error(`[Main Process] Failed to load or initialize service for plugin ${plugin.id} from ${servicePath}:`, serviceError);
+            }
+        }
+    }
+
   } catch (error) {
     console.error('Failed during app initialization:', error);
   }
@@ -102,7 +126,8 @@ app.on('window-all-closed', () => {
   }
 });
 
-// All IPC Handlers remain unchanged
+// --- IPC Handlers ---
+
 ipcMain.handle('get-plugins', async () => {
   const plugins = await pluginManager.loadPlugins();
   return plugins.map((plugin) => ({
@@ -120,43 +145,118 @@ ipcMain.handle('db-set-global-setting', async (_, key, value) => {
 });
 
 ipcMain.handle('db-get-plugin-settings', async (_, pluginId) => {
-  const safeId = sanitizeForSQL(pluginId);
-  const settings = await db.all(`SELECT * FROM plugin_${safeId}_settings`);
-  return settings.reduce((acc, setting) => {
-    acc[setting.key] = setting.value;
-    return acc;
-  }, {});
+  return await db.getPluginSettings(pluginId);
 });
 
 ipcMain.handle('db-set-plugin-setting', async (_, pluginId, key, value) => {
-  const safeId = sanitizeForSQL(pluginId);
-  return await db.run(
-    `INSERT OR REPLACE INTO plugin_${safeId}_settings (key, value) VALUES (?, ?)`,
-    [key, value]
-  );
+  return await db.setPluginSetting(pluginId, key, value);
 });
 
 ipcMain.handle('db-run-query', async (_, pluginId, sql, params) => {
   const safeId = sanitizeForSQL(pluginId);
-  const tableName = `plugin_${safeId}_`;
-  if (!sql.includes(tableName)) {
-    throw new Error(`Query must target a table starting with '${tableName}'`);
+  const tableNamePrefix = `plugin_${safeId}_`;
+  if (!sql.includes(tableNamePrefix)) {
+    throw new Error(`Query must target a table starting with '${tableNamePrefix}'`);
   }
   return await db.run(sql, params);
 });
 
 ipcMain.handle('db-all-query', async (_, pluginId, sql, params) => {
   const safeId = sanitizeForSQL(pluginId);
-  const tableName = `plugin_${safeId}_`;
-  if (!sql.includes(tableName)) {
-    throw new Error(`Query must target a table starting with '${tableName}'`);
+  const tableNamePrefix = `plugin_${safeId}_`;
+  if (!sql.includes(tableNamePrefix)) {
+    throw new Error(`Query must target a table starting with '${tableNamePrefix}'`);
   }
   return await db.all(sql, params);
 });
 
+ipcMain.handle('get-os-hostname', () => os.hostname());
+ipcMain.handle('get-os-type', () => os.type());
+ipcMain.handle('get-os-platform', () => os.platform());
+ipcMain.handle('get-os-arch', () => os.arch());
+ipcMain.handle('get-os-release', () => os.release());
+ipcMain.handle('get-os-uptime', () => os.uptime());
+ipcMain.handle('get-os-loadavg', () => os.loadavg());
+ipcMain.handle('get-os-totalmem', () => os.totalmem());
+ipcMain.handle('get-os-freemem', () => os.freemem());
+ipcMain.handle('get-os-cpus', () => os.cpus());
+ipcMain.handle('get-os-network-interfaces', () => os.networkInterfaces());
+
+
+ipcMain.handle('plugin:service-call', async (event, { pluginId, method, params }) => {
+    const serviceModule = pluginServices[pluginId];
+    if (!serviceModule) {
+        throw new Error(`Service for plugin ${pluginId} not found.`);
+    }
+    const serviceFunction = serviceModule[method];
+    if (typeof serviceFunction !== 'function') {
+        throw new Error(`Method "${method}" not found in plugin ${pluginId} service.`);
+    }
+    try {
+        return await serviceFunction(params); 
+    } catch (error) {
+        console.error(`[Main Process] Error calling service method ${pluginId}:${method}:`, error);
+        throw error; 
+    }
+});
+
+ipcMain.handle('open-plugin-specific-modal', (event, { pluginId, modalType }) => {
+    const targetWebContents = webContents.getAllWebContents().find(wc => {
+        if (wc.id === mainWindow.webContents.id) {
+            return false;
+        }
+        const url = wc.getURL();
+        if (url.startsWith('file://')) {
+            const fsPath = process.platform === 'win32' ? url.slice(8) : url.slice(7); 
+            const pluginPath = allPlugins.find(p => p.id === pluginId)?.path;
+            if (pluginPath && path.normalize(fsPath).includes(path.normalize(pluginPath))) {
+                return true;
+            }
+        }
+        return false;
+    });
+
+    if (targetWebContents) {
+        targetWebContents.send('plugin-modal-request', { modalType });
+        console.log(`[Main] Sent 'plugin-modal-request' (${modalType}) to webview for plugin ${pluginId}`);
+    } else {
+        console.warn(`[Main] No webview found for plugin ${pluginId} to open modal ${modalType}.`);
+    }
+    return true; 
+});
+
+// --- NEW: IPC Handler to open external links ---
+ipcMain.handle('open-external-link', async (_, url) => {
+    try {
+        await shell.openExternal(url);
+        return { success: true };
+    } catch (error) {
+        console.error(`Error opening external link ${url}:`, error);
+        return { success: false, error: error.message };
+    }
+});
+
+
+ipcMain.handle('db-get-all-tables', async () => {
+    return await db.getAllTables();
+});
+
+ipcMain.handle('db-get-table-content', async (_, tableName) => {
+    return await db.getTableContent(tableName);
+});
+
+ipcMain.handle('db-drop-table', async (_, tableName) => {
+    return await db.dropTable(tableName);
+});
+
+ipcMain.handle('db-delete-row', async (_, tableName, rowid) => {
+    return await db.deleteRow(tableName, rowid);
+});
+
+
 ipcMain.handle('plugin-regenerate-tables', async (_, pluginId) => {
   const safeId = sanitizeForSQL(pluginId);
-  const plugin = (await pluginManager.loadPlugins()).find((p) => p.id === pluginId);
+  const plugin = allPlugins.find((p) => p.id === pluginId);
   if (plugin && plugin.manifest.tables) {
     for (const tableDef of plugin.manifest.tables) {
       const tableName = `plugin_${safeId}_${tableDef.name}`;
