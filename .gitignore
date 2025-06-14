@@ -17,3 +17,6 @@ dist-ssr
 plugins/**/token.json
 plugins/**/credentials.json
 plugins/**/calendar_config.json
+
+#ignore db
+command_center.db
