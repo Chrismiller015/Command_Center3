@@ -1,93 +1,80 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import Sidebar from './components/Sidebar'
-import Dashboard from './components/dashboard'
-import Settings from './components/Settings'
-import PluginView from './components/PluginView'
+import React, { useState, useEffect } from 'react';
+import Sidebar from './components/Sidebar';
+import PluginView from './components/PluginView';
+import Dashboard from './components/dashboard';
+import Settings from './components/Settings';
+import ToastContainer from './components/ToastContainer';
+import { showToast } from './utils/toast';
 
 function App() {
-  const [sidebarPlugins, setSidebarPlugins] = useState([])
-  const [widgetPlugins, setWidgetPlugins] = useState([])
-  const [activeView, setActiveView] = useState({ type: 'dashboard', id: 'dashboard' })
-  const [userName, setUserName] = useState('')
+  const [plugins, setPlugins] = useState([]);
+  const [activePlugin, setActivePlugin] = useState('dashboard');
+  const [settings, setSettings] = useState({});
 
-  // This function now loads and sorts both lists independently
-  const loadPluginData = useCallback(async () => {
-    const allPlugins = await window.electronAPI.getPlugins();
+  const loadSettings = async () => {
+    try {
+      const theme = await window.electronAPI.getGlobalSetting('theme');
+      const someOtherSetting = await window.electronAPI.getGlobalSetting('someOtherSetting');
+      const notesPluginSettings = await window.electronAPI.getPluginSettings('notes-plugin');
 
-    // --- Handle Sidebar Order ---
-    const sidebarOrderJson = await window.electronAPI.getGlobalSetting('sidebarOrder');
-    let sortedSidebar = [...allPlugins]; // Start with default order
-    if (sidebarOrderJson) {
-      try {
-        const savedOrder = JSON.parse(sidebarOrderJson);
-        const pluginMap = new Map(allPlugins.map(p => [p.id, p]));
-        sortedSidebar = savedOrder.map(id => pluginMap.get(id)).filter(Boolean);
-        allPlugins.forEach(p => {
-          if (!savedOrder.includes(p.id)) sortedSidebar.push(p);
-        });
-      } catch (e) { console.error("Failed to parse sidebar order.", e); }
-    }
-    setSidebarPlugins(sortedSidebar);
-
-    // --- Handle Widget Order ---
-    const potentialWidgets = allPlugins.filter(p => p.manifest.widget);
-    const widgetOrderJson = await window.electronAPI.getGlobalSetting('widgetOrder');
-    let sortedWidgets = [...potentialWidgets]; // Start with default order
-    if (widgetOrderJson) {
-      try {
-        const savedOrder = JSON.parse(widgetOrderJson);
-        const widgetMap = new Map(potentialWidgets.map(p => [p.id, p]));
-        sortedWidgets = savedOrder.map(id => widgetMap.get(id)).filter(Boolean);
-        potentialWidgets.forEach(p => {
-          if (!savedOrder.includes(p.id)) sortedWidgets.push(p);
-        });
-      } catch (e) { console.error("Failed to parse widget order.", e); }
-    }
-    setWidgetPlugins(sortedWidgets);
-
-  }, []);
-
-  useEffect(() => {
-    const fetchUserName = async () => {
-        const name = await window.electronAPI.getGlobalSetting('userName');
-        setUserName(name || '');
-    };
-    loadPluginData();
-    fetchUserName();
-  }, [loadPluginData]);
-
-
-  const renderActiveView = () => {
-    // Find the currently viewed plugin from the sidebar's sorted list
-    const currentPlugin = sidebarPlugins.find(p => p.id === activeView.id);
-
-    switch (activeView.type) {
-      case 'dashboard':
-        return <Dashboard userName={userName} potentialWidgets={widgetPlugins} />;
-      case 'plugin':
-        return currentPlugin ? <PluginView plugin={currentPlugin} key={currentPlugin.id} /> : <div>Plugin not found</div>;
-      case 'settings':
-        return <Settings 
-                  currentName={userName} 
-                  onNameChange={setUserName} 
-                  sidebarPlugins={sidebarPlugins}
-                  widgetPlugins={widgetPlugins}
-                  onOrderSave={loadPluginData} 
-                />;
-      default:
-        return <Dashboard userName={userName} potentialWidgets={widgetPlugins} />;
+      setSettings({
+        theme: theme || 'dark',
+        someOtherSetting: someOtherSetting || 'default value',
+        notesPlugin: notesPluginSettings
+      });
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+      showToast('Failed to load settings.', { type: 'error' });
     }
   };
 
+  useEffect(() => {
+    const fetchPlugins = async () => {
+      const loadedPlugins = await window.electronAPI.getPlugins();
+      setPlugins(loadedPlugins);
+    };
+
+    fetchPlugins();
+    loadSettings();
+
+    const cleanup = window.electronAPI.onShowToast((options) => {
+      showToast(options.message, options);
+    });
+
+    return () => {
+      if (typeof cleanup === 'function') {
+        cleanup();
+      }
+    };
+  }, []);
+
+  const handlePluginSelect = (pluginId) => {
+    setActivePlugin(pluginId);
+  };
+
+  const renderActiveView = () => {
+    if (activePlugin === 'dashboard') {
+      return <Dashboard plugins={plugins} />;
+    }
+    if (activePlugin === 'settings') {
+      return <Settings settings={settings} onSettingsChange={loadSettings} plugins={plugins} />;
+    }
+    const plugin = plugins.find((p) => p.id === activePlugin);
+    // FIX: Add a unique 'key' prop to PluginView to force remount on change.
+    return plugin ? <PluginView key={plugin.id} plugin={plugin} /> : <div>Plugin not found</div>;
+  };
+
   return (
-    <div className="flex h-screen bg-gray-900 text-gray-200">
-      <div className="title-bar"></div>
-      <Sidebar plugins={sidebarPlugins} activeViewId={activeView.id} setActiveView={setActiveView} />
-      <div className="flex-1 flex flex-col overflow-hidden pt-8">
-        <main className="flex-1 overflow-y-auto">
-          {renderActiveView()}
-        </main>
-      </div>
+    <div className="flex h-screen bg-gray-900 text-white font-sans">
+      <ToastContainer />
+      <Sidebar
+        plugins={plugins}
+        setActiveView={handlePluginSelect}
+        activeView={activePlugin}
+      />
+      <main className="flex-1 flex flex-col overflow-y-auto">
+        {renderActiveView()}
+      </main>
     </div>
   );
 }

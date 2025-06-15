@@ -1,32 +1,23 @@
-import { CopyDropdown } from './CopyDropdown.js'; // Will be created next
+/**
+ * Sets up the main action buttons for the notes plugin (e.g., New Note, Delete Note).
+ * @param {object} options - An object containing the callback handlers.
+ * @param {function} options.onNewNote - Callback for when the 'New Note' button is clicked.
+ * @param {function} options.onDeleteNote - Callback for when the 'Delete Note' button is clicked.
+ */
+// FIX: Ensure this is the primary exported function for button setup.
+export function setupActionButtons({ onNewNote, onDeleteNote }) {
+    const newNoteBtn = document.getElementById('new-note-btn');
+    const deleteNoteBtn = document.getElementById('delete-note-btn');
 
-export class NoteActions {
-    constructor(containerId, onDeleteNote, onCopyNote) {
-        this.container = document.getElementById(containerId);
-        this.onDeleteNote = onDeleteNote;
-        this.onCopyNote = onCopyNote;
-
-        this.deleteBtn = this.container.querySelector('#delete-note-btn');
-        // We will dynamically add the CopyDropdown container later in render()
-
-        this.setupEventListeners();
+    if (newNoteBtn) {
+        newNoteBtn.addEventListener('click', onNewNote);
+    } else {
+        console.error('New Note button not found');
     }
 
-    setupEventListeners() {
-        if (this.deleteBtn) {
-            this.deleteBtn.addEventListener('click', this.onDeleteNote);
-        }
-        // CopyDropdown event listeners will be set up by CopyDropdown class
-    }
-
-    render(noteIsActive) {
-        if (noteIsActive) {
-            this.container.classList.remove('hidden');
-        } else {
-            this.container.classList.add('hidden');
-        }
-
-        // Initialize CopyDropdown here. We need a container for it in index.html
-        // For now, let's just make sure the delete button is visible/hidden correctly.
+    if (deleteNoteBtn) {
+        deleteNoteBtn.addEventListener('click', onDeleteNote);
+    } else {
+        console.error('Delete Note button not found');
     }
 }

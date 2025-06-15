@@ -1,129 +1,133 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CogIcon } from '@heroicons/react/24/solid';
+import { ArrowPathIcon as RefreshIcon, CommandLineIcon } from '@heroicons/react/24/outline';
 import Modal from './Modal';
-import Form from './Form';
+import PluginSettings from './PluginSettings';
 
-import { Cog6ToothIcon, BugAntIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faCalendarDays, faGear, faBug, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
-
-const IconComponents = {
-    SettingsIcon: Cog6ToothIcon,
-    DebugIcon: BugAntIcon,
-    'fa-solid-calendar-days': (props) => <FontAwesomeIcon icon={faCalendarDays} {...props} className="pointer-events-none" />,
-    'fa-solid-right-from-bracket': (props) => <FontAwesomeIcon icon={faRightFromBracket} {...props} className="pointer-events-none" />,
-    'fa-solid-plus': (props) => <FontAwesomeIcon icon={faPlus} {...props} className="pointer-events-none" />,
-    'fa-solid-gear': (props) => <FontAwesomeIcon icon={faGear} {...props} className="pointer-events-none" />,
-    'fa-solid-bug': (props) => <FontAwesomeIcon icon={faBug} {...props} className="pointer-events-none" />,
-};
-
-const PluginView = ({ plugin }) => {
-  const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [settings, setSettings] = useState({});
-  const [initialSettings, setInitialSettings] = useState({});
+function PluginView({ plugin }) {
   const webviewRef = useRef(null);
+  const [isWebviewReady, setIsWebviewReady] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [preloadPath, setPreloadPath] = useState('');
 
-  const handleOpenSettings = async () => {
-    const currentSettings = await window.electronAPI.getPluginSettings(plugin.id);
-    setSettings(currentSettings);
-    setInitialSettings(currentSettings);
-    setSettingsModalOpen(true);
-  };
-
-  const handleCloseSettings = () => {
-    setSettingsModalOpen(false);
-    // After closing, check if critical credentials have changed
-    if (
-        (settings.googleClientId && settings.googleClientId !== initialSettings.googleClientId) ||
-        (settings.googleClientSecret && settings.googleClientSecret !== initialSettings.googleClientSecret)
-    ) {
-        console.log("Credentials changed. Reloading plugin to trigger auth check.");
-        webviewRef.current?.reload();
-    }
-  };
-
-  const handleSettingChange = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    window.electronAPI.setPluginSetting(plugin.id, key, value);
-  };
-  
-  const handleRegenerate = async () => {
-    if (window.confirm("Are you sure? This will delete all plugin data and restart the app.")) {
-        await window.electronAPI.regenerateTables(plugin.id);
-    }
-  };
-
-  const openWebviewDevTools = () => webviewRef.current?.openDevTools();
-
-  const handlePluginButtonAction = async (action) => {
+  // Fetch the preload path when the component mounts
+  useEffect(() => {
+    const fetchPreloadPath = async () => {
       try {
-          if (action.type === 'openModal') {
-              await window.electronAPI.openPluginSpecificModal({ pluginId: plugin.id, modalType: action.modalType });
-          } else if (action.type === 'serviceMethod') {
-              await window.electronAPI['plugin:service-call']({
-                  pluginId: plugin.id,
-                  method: action.methodName,
-                  params: action.params 
-              });
-              webviewRef.current?.reload();
-          }
+        const path = await window.electronAPI.getPreloadPath();
+        setPreloadPath(path);
       } catch (error) {
-          console.error(`Error executing plugin button action for ${plugin.id}:`, error);
-          alert(`Error: ${error.message}`);
+        console.error("Failed to get preload path:", error);
       }
+    };
+    fetchPreloadPath();
+  }, []);
+
+  const entryPoint = plugin?.manifest?.entryPoint;
+  
+  if (!plugin || !entryPoint) {
+    return <div className="p-4 text-red-400">Error: Cannot load plugin. It may be missing 'entryPoint' in its manifest.json.</div>;
+  }
+  
+  const pluginPath = `file://${plugin.path}/${entryPoint}`;
+
+  useEffect(() => {
+    if (!webviewRef.current || !preloadPath) return;
+
+    const webview = webviewRef.current;
+    setIsWebviewReady(false);
+    
+    // Set the preload attribute programmatically
+    webview.preload = `file://${preloadPath}`;
+
+    const handleDomReady = () => {
+      console.log(`Webview for ${plugin.id} is ready.`);
+      setIsWebviewReady(true);
+    };
+
+    webview.addEventListener('dom-ready', handleDomReady);
+    
+    // Also listen for crashes
+    const handleCrash = (e) => {
+        console.error(`Webview for ${plugin.id} has crashed.`, e);
+    }
+    webview.addEventListener('crashed', handleCrash);
+
+    return () => {
+      webview.removeEventListener('dom-ready', handleDomReady);
+      webview.removeEventListener('crashed', handleCrash);
+    };
+  }, [plugin.id, preloadPath]);
+
+  const handleRefresh = () => {
+    if (webviewRef.current) {
+      webviewRef.current.reload();
+    }
+  };
+
+  const openWebviewDevTools = () => {
+    if (webviewRef.current && isWebviewReady) {
+      webviewRef.current.openDevTools();
+    } else {
+      console.warn("Webview is not ready yet. Please wait a moment and try again.");
+    }
   };
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="p-4 bg-gray-800 shadow-md flex justify-between items-center flex-shrink-0">
-        <h1 className="text-xl font-bold text-white">{plugin.manifest.name}</h1>
-        <div className="flex items-center space-x-2">
-            {plugin.manifest.pluginButtons?.map((buttonDef) => {
-                const IconComponent = IconComponents[buttonDef.icon];
-                return IconComponent ? (
-                    <button key={buttonDef.id} onClick={() => handlePluginButtonAction(buttonDef.action)} title={buttonDef.tooltip || buttonDef.label} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white">
-                        <IconComponent className="w-6 h-6" />
-                    </button>
-                ) : null;
-            })}
-            <button onClick={openWebviewDevTools} title="Open Plugin DevTools" className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white">
-                <IconComponents.DebugIcon className="w-6 h-6" />
+    <div className="flex flex-col h-full w-full bg-gray-900">
+      <div className="flex items-center justify-between bg-gray-800 p-2 border-b border-gray-700 flex-shrink-0">
+        <h2 className="text-lg font-semibold text-white">{plugin.manifest.name}</h2>
+        <div className="flex items-center gap-2">
+          {plugin.manifest.settings && (
+            <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              title="Plugin Settings"
+              className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-md"
+            >
+              <CogIcon className="h-5 w-5" />
             </button>
-            <button onClick={handleOpenSettings} title="Plugin Settings" className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white">
-              <IconComponents.SettingsIcon className="w-6 h-6" />
-            </button>
+          )}
+          <button
+            onClick={handleRefresh}
+            title="Refresh Plugin"
+            className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-md"
+          >
+            <RefreshIcon className="h-5 w-5" />
+          </button>
+          <button
+            onClick={openWebviewDevTools}
+            title="Open Plugin DevTools"
+            className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-md"
+          >
+            <CommandLineIcon className="h-5 w-5" />
+          </button>
         </div>
-      </header>
-      <div className="flex-1 bg-gray-900">
-        <webview ref={webviewRef} src={plugin.entryPointPath} className="w-full h-full" style={{ backgroundColor: '#111827' }} nodeintegration="true" />
       </div>
 
-      <Modal isOpen={isSettingsModalOpen} onClose={handleCloseSettings} title={`${plugin.manifest.name} Settings`}>
-        {plugin.manifest.settings && plugin.manifest.settings.length > 0 ? (
-            <>
-              <Form
-                  schema={plugin.manifest.settings}
-                  formData={settings}
-                  onFormChange={handleSettingChange}
-              />
-              <div className="text-right mt-6">
-                <button onClick={handleCloseSettings} className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500">
-                    Done
-                </button>
-              </div>
-            </>
+      <div className="flex-grow w-full h-full bg-gray-900">
+        {preloadPath ? (
+          <webview
+            ref={webviewRef}
+            src={pluginPath}
+            className="w-full h-full"
+            nodeintegration="false"
+          ></webview>
         ) : (
-            <p className="text-gray-400">This plugin has no configurable settings.</p>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-400">Initializing plugin environment...</p>
+          </div>
         )}
-        <div className="mt-8 border-t border-gray-700 pt-4">
-            <h3 className="text-lg font-bold text-white mb-2">Danger Zone</h3>
-            <p className="text-gray-400 text-sm mb-4">This will delete all data for this plugin and restart the application.</p>
-            <button onClick={handleRegenerate} className="px-6 py-2 bg-rose-700 text-white rounded-md hover:bg-rose-800 focus:outline-none">
-                Regenerate Tables
-            </button>
-        </div>
+      </div>
+      
+      <Modal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        title={`${plugin.manifest.name} Settings`}
+      >
+        <PluginSettings plugin={plugin} />
       </Modal>
     </div>
-  )
+  );
 }
 
 export default PluginView;

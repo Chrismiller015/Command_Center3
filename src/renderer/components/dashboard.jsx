@@ -1,58 +1,69 @@
 import React, { useState, useEffect } from 'react';
-import Clock from './Clock';
 import Widget from './Widget';
+import Clock from './clock';
 
-// It now receives 'potentialWidgets', which is pre-sorted and filtered
-const Dashboard = ({ userName, potentialWidgets }) => {
-    const [enabledWidgets, setEnabledWidgets] = useState([]);
+function Dashboard({ plugins }) {
+  const [enabledWidgets, setEnabledWidgets] = useState({});
 
-    useEffect(() => {
-        const loadEnabledState = async () => {
-            if (potentialWidgets.length === 0) {
-                setEnabledWidgets([]);
-                return;
-            }
+  useEffect(() => {
+    // FIX: Add a guard clause.
+    // This ensures the code doesn't run until the `plugins` prop is a valid array.
+    if (!plugins || plugins.length === 0) {
+      return;
+    }
 
-            // For the given potential widgets, check which ones are actually enabled
-            const settingsPromises = potentialWidgets.map(p => 
-                window.electronAPI.getPluginSettings(p.id)
-            );
-            const allSettings = await Promise.all(settingsPromises);
-
-            const widgetsToDisplay = potentialWidgets.filter((plugin, index) => {
-                return !!allSettings[index].widgetEnabled;
-            });
-            
-            setEnabledWidgets(widgetsToDisplay);
-        };
-
-        loadEnabledState();
-    }, [potentialWidgets]); // Re-check which widgets are enabled if the potential list changes
-
-    const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return "Good Morning";
-        if (hour < 18) return "Good Afternoon";
-        return "Good Evening";
+    const loadEnabledState = async () => {
+      try {
+        const initialEnabledState = {};
+        for (const plugin of plugins) {
+          if (plugin.widget) {
+            // Use the correct API to get plugin-specific settings
+            const settings = await window.electronAPI.getPluginSettings(plugin.id);
+            initialEnabledState[plugin.id] = settings?.dashboard_widget_enabled === 'true' || false;
+          }
+        }
+        setEnabledWidgets(initialEnabledState);
+      } catch (error) {
+        console.error("Error loading widget enabled state:", error);
+      }
     };
 
-    return (
-        <div className="p-6">
-            <h1 className="text-4xl font-bold text-white mb-2">{getGreeting()}{userName ? `, ${userName}` : ''}!</h1>
-            <p className="text-lg text-gray-400 mb-8">Welcome to your Command Center dashboard.</p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1 md:col-span-2">
-                    <Clock />
-                </div>
-                
-                {/* Widgets will now render in the user-defined order */}
-                {enabledWidgets.map(plugin => (
-                    <Widget key={plugin.id} plugin={plugin} />
-                ))}
-            </div>
+    loadEnabledState();
+  }, [plugins]); // Add plugins as a dependency to re-run when they are loaded.
+
+  const toggleWidget = async (pluginId) => {
+    const newState = !enabledWidgets[pluginId];
+    try {
+      // Use the correct API to set the new state
+      await window.electronAPI.setPluginSetting(pluginId, 'dashboard_widget_enabled', newState.toString());
+      setEnabledWidgets(prevState => ({
+        ...prevState,
+        [pluginId]: newState,
+      }));
+    } catch (error) {
+      console.error(`Error toggling widget for ${pluginId}:`, error);
+    }
+  };
+
+  const widgetPlugins = plugins.filter(p => p.widget);
+
+  return (
+    <div className="p-4 h-full overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {/* Clock is always displayed */}
+        <div className="bg-gray-800 rounded-lg p-4 flex flex-col justify-center items-center text-white">
+          <Clock />
         </div>
-    );
-};
+
+        {/* Render widgets for plugins that have one and are enabled */}
+        {widgetPlugins.map(plugin => (
+          enabledWidgets[plugin.id] && (
+            <Widget key={plugin.id} plugin={plugin} />
+          )
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default Dashboard;

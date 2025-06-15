@@ -1,85 +1,54 @@
-// This file acts as the main entry point for the plugin's
-// backend service, exposing methods to the frontend via Electron's IPC.
+// plugins/notes-plugin/service/index.mjs
 
-import db from './db.mjs';
-import * as features from './features/index.mjs'; // Will create this aggregate index file
+// FIX: Import all exported functions from db.mjs into a single 'db' object
+import * as db from './db.mjs';
+import * as featureManager from './features/index.mjs';
 
-// Define the API methods that the renderer process (frontend) can call.
-// Each method here should typically delegate to the appropriate
-// database function or feature-specific module.
-const api = {
-    // Basic DB operations (will wrap the main app's database.js functions)
-    async dbRun(sql, params) {
-        return await db.run(sql, params);
-    },
-    async dbGet(sql, params) {
-        return await db.get(sql, params);
-    },
-    async dbAll(sql, params) {
-        return await db.all(sql, params);
-    },
+/**
+ * Main service object for the Notes plugin.
+ * These methods are exposed to the frontend via the main process IPC bridge.
+ */
+const noteService = {
+  // CRUD operations for Notes
+  getNote: (params) => featureManager.versions.getCurrentNote(params.id),
+  getNotes: (params) => db.getAllNotes(params),
+  createNote: (params) => db.createNote(params),
+  updateNote: (params) => db.updateNote(params),
+  deleteNote: (params) => db.deleteNote(params.id),
 
-    // --- Feature-specific API calls ---
-    // Example: Notes operations
-    async getNotes(options = {}) {
-        return await db.getNotes(options);
-    },
-    async saveNote(noteData) {
-        return await db.saveNote(noteData);
-    },
-    async deleteNote(noteId) {
-        return await db.deleteNote(noteId);
-    },
+  // Version history
+  getNoteVersions: (params) => featureManager.versions.getNoteVersions(params.id),
+  getNoteVersion: (params) => featureManager.versions.getNoteVersion(params.versionId),
+  revertToVersion: (params) => featureManager.versions.revertToVersion(params.versionId),
+  compareVersions: (params) => featureManager.versions.compareVersions(params.versionIdA, params.versionIdB),
 
-    // Example: Folder operations
-    async getFolders() {
-        return await db.getFolders();
-    },
-    async createFolder(name, parentId = null) {
-        return await db.createFolder(name, parentId);
-    },
+  // Tag operations
+  getTags: (params) => db.getAllTags(params),
+  addTagToNote: (params) => db.addTagToNote(params),
+  removeTagFromNote: (params) => db.removeTagFromNote(params),
 
-    // Example: Version history
-    async getNoteVersions(noteId) {
-        return await features.versions.getVersions(noteId);
-    },
-    async restoreNoteVersion(noteId, versionId) {
-        return await features.versions.restoreVersion(noteId, versionId);
-    },
+  // Folder operations
+  getFolders: () => db.getAllFolders(),
+  createFolder: (params) => db.createFolder(params.name),
+  renameFolder: (params) => db.updateFolder(params),
+  deleteFolder: (params) => db.deleteFolder(params.id),
 
-    // Example: Reminders
-    async addReminder(noteId, targetDate, message, contextRef = null) {
-        return await features.reminders.addReminder(noteId, targetDate, message, contextRef);
-    },
-    async deleteReminder(reminderId) {
-        return await features.reminders.deleteReminder(reminderId);
-    },
+  // Linking
+  createLink: (params) => featureManager.linking.createLink(params),
+  getBacklinks: (params) => featureManager.linking.getBacklinks(params.noteId),
 
-    // Example: Templates
-    async getTemplates() {
-        return await features.templates.getTemplates();
-    },
-    async saveNoteAsTemplate(noteId, templateName) {
-        return await features.templates.saveNoteAsTemplate(noteId, templateName);
-    },
+  // Reminders
+  setReminder: (params) => featureManager.reminders.setReminder(params),
+  getReminders: () => featureManager.reminders.getReminders(),
+  deleteReminder: (params) => featureManager.reminders.deleteReminder(params.reminderId),
 
-    // Add API for Copy for X feature (this will be complex)
-    // This will receive the formatted content from the frontend and interact with Electron's clipboard
-    async writeToClipboard(format, data) {
-        // This will call Electron's clipboard API (requires main process access)
-        // window.electronAPI.writeToClipboard is what the frontend will call.
-        // This `index.mjs` will expose `writeToClipboard` which in turn calls
-        // a new handler in `src/main/index.js`
-        console.log(`Backend service received request to write to clipboard for format: ${format}`);
-        // For now, this is a placeholder. The actual clipboard interaction
-        // will be in src/main/index.js via an exposed electronAPI method.
-        return true;
-    }
+  // Search
+  searchNotes: (params) => featureManager.search.searchNotes(params.query),
 
-    // Add other feature-specific APIs as they are implemented
+  // Templates
+  getTemplates: () => featureManager.templates.getTemplates(),
+  createTemplate: (params) => featureManager.templates.createTemplate(params.name, params.content),
+  applyTemplate: (params) => featureManager.templates.applyTemplate(params.templateId),
 };
 
-// IMPORTANT: This 'api' object needs to be returned/exposed in a way that
-// src/main/index.js can pick it up and register its methods via ipcMain.handle.
-// For now, we'll assume it's directly exported.
-export default api;
+export default noteService;

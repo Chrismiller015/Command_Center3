@@ -1,29 +1,30 @@
-import { NoteItem } from './NoteItem.js';
+import { createNoteItem } from './NotesItem.js';
 
-export class NotesList {
-    constructor(containerId, onNoteSelect) {
-        this.container = document.getElementById(containerId);
-        this.onNoteSelect = onNoteSelect;
-        this.notes = [];
-        this.activeNoteId = null;
-    }
+/**
+ * Renders the list of notes in the sidebar.
+ * @param {HTMLElement} container - The container element to render the list into.
+ * @param {Array<object>} notes - The array of note objects to render.
+ * @param {function} onNoteSelect - The callback function to execute when a note is selected.
+ */
+export function renderNotesList(container, notes, onNoteSelect) {
+  if (!container) {
+    console.error('Notes list container not found.');
+    return;
+  }
 
-    render(notes, activeNoteId) {
-        this.notes = notes;
-        this.activeNoteId = activeNoteId;
-        this.container.innerHTML = ''; // Clear existing list
+  // Clear the existing list
+  container.innerHTML = '';
 
-        if (this.notes.length === 0) {
-            this.container.innerHTML = '<p class="text-center text-gray-500 p-4">No notes found.</p>';
-            return;
-        }
+  if (!notes || notes.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 p-4">No notes found.</p>';
+    return;
+  }
 
-        // Future enhancement: Group by folders, show pinned notes first
-        this.notes.forEach(note => {
-            const noteItem = new NoteItem(note, note.id === this.activeNoteId);
-            const itemElement = noteItem.render();
-            itemElement.addEventListener('click', () => this.onNoteSelect(note.id));
-            this.container.appendChild(itemElement);
-        });
-    }
+  const listElement = document.createElement('ul');
+  notes.forEach(note => {
+    const noteElement = createNoteItem(note, onNoteSelect);
+    listElement.appendChild(noteElement);
+  });
+
+  container.appendChild(listElement);
 }

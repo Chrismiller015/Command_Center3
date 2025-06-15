@@ -1,25 +1,40 @@
-import { formatDate } from '../utils.js';
+/**
+ * Creates and returns a single note item element.
+ * @param {object} note - The note object.
+ * @param {function} onNoteSelect - The callback to call when the item is clicked.
+ * @returns {HTMLLIElement} The created list item element.
+ */
+export function createNoteItem(note, onNoteSelect) {
+  const listItem = document.createElement('li');
+  listItem.className = 'p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700';
+  listItem.dataset.noteId = note.id;
 
-export class NoteItem {
-    constructor(note, isActive = false) {
-        this.note = note;
-        this.isActive = isActive;
-    }
+  listItem.addEventListener('click', () => {
+    onNoteSelect(note.id);
+  });
 
-    render() {
-        const item = document.createElement('div');
-        item.className = `note-item p-4 border-b border-gray-800 cursor-pointer hover:bg-gray-700 ${this.isActive ? 'active' : ''}`;
-        item.dataset.id = this.note.id;
+  const title = document.createElement('h3');
+  title.className = 'font-bold text-white truncate';
+  title.textContent = note.title || 'Untitled Note';
 
-        const firstLine = this.note.content.replace(/<[^>]+>/g, '').split('\n')[0].trim();
-        const title = firstLine.substring(0, 40) || 'New Note';
-        const tagsText = this.note.tags.join(' '); // Assuming tags is now an array
+  const preview = document.createElement('p');
+  preview.className = 'text-gray-400 text-sm truncate';
+  // A simple text preview from the content
+  try {
+    const content = JSON.parse(note.content);
+    const textPreview = content.ops.map(op => typeof op.insert === 'string' ? op.insert : '').join('').substring(0, 100);
+    preview.textContent = textPreview || 'No additional text';
+  } catch (e) {
+    preview.textContent = 'No additional text';
+  }
 
-        item.innerHTML = `
-            <h3 class="font-bold truncate">${title}</h3>
-            <p class="text-sm text-gray-400">Updated: ${formatDate(this.note.updatedAt)}</p>
-            <p class="text-sm text-indigo-400 truncate mt-1">${tagsText}</p>
-        `;
-        return item;
-    }
+  const date = document.createElement('p');
+  date.className = 'text-gray-500 text-xs mt-1';
+  date.textContent = new Date(note.updated_at).toLocaleString();
+  
+  listItem.appendChild(title);
+  listItem.appendChild(preview);
+  listItem.appendChild(date);
+
+  return listItem;
 }

@@ -1,38 +1,29 @@
-// This assumes Quill.js is loaded globally via a script tag in index.html
-export class QuillService {
-    constructor(editorSelector) {
-        this.quillInstance = new Quill(editorSelector, {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['link', 'blockquote', 'code-block'],
-                    ['clean']
-                ]
-            }
-        });
-    }
+/**
+ * Initializes and configures the Quill rich text editor.
+ * @param {string} selector - The CSS selector for the editor container.
+ * @returns {Quill} The initialized Quill instance.
+ */
+// FIX: Added the 'export' keyword to make this function available for import.
+export function initializeQuill(selector) {
+  const quill = new Quill(selector, {
+    modules: {
+      toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        ['link', 'image', 'code-block'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        [{ 'script': 'sub'}, { 'script': 'super' }],
+        [{ 'indent': '-1'}, { 'indent': '+1' }],
+        [{ 'direction': 'rtl' }],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'font': [] }],
+        [{ 'align': [] }],
+        ['clean']
+      ],
+    },
+    placeholder: 'Start writing your masterpiece...',
+    theme: 'snow',
+  });
 
-    getHTML() {
-        return this.quillInstance.root.innerHTML;
-    }
-
-    setHTML(html) {
-        this.quillInstance.root.innerHTML = html;
-    }
-
-    focus() {
-        this.quillInstance.focus();
-    }
-
-    onTextChange(callback) {
-        this.quillInstance.on('text-change', callback);
-    }
-
-    // You will add methods here to handle:
-    // - Adding custom Quill modules (for tables, math, checklists, code highlighting)
-    // - Getting content in specific formats (Delta, plain text)
-    // - Inserting content (templates, variables)
+  return quill;
 }

@@ -1,54 +1,64 @@
 import React from 'react';
+import { CogIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
 
-// Inline SVG for simplicity
-const DashboardIcon = () => <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>;
-const SettingsIcon = () => <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>;
-const PluginIcon = () => <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>;
-
-
-const Sidebar = ({ plugins, activeViewId, setActiveView }) => {
-  const navLinkClasses = "flex items-center p-3 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer";
-  const activeLinkClasses = "bg-indigo-600 text-white font-semibold";
+function Sidebar({ plugins, activeView, setActiveView }) {
+  const getIcon = (iconName) => {
+    // In a real app, you'd have a mapping of icon names to actual icon components.
+    return (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+      </svg>
+    );
+  };
 
   return (
-    <aside className="bg-gray-800 text-white w-64 flex-shrink-0 flex flex-col pt-8"> {/* pt-8 for title bar */}
-      <div className="p-5 text-2xl font-bold border-b border-gray-700">
-        Command Center
+    <div className="flex flex-col w-64 bg-gray-800 text-white">
+      <div className="flex items-center justify-center h-16 bg-gray-900 flex-shrink-0">
+        <span className="text-white font-bold uppercase">Command Center</span>
       </div>
-      <nav className="p-3 space-y-2 flex-1">
-        {/* Dashboard Link */}
-        <div
-          className={`${navLinkClasses} ${activeViewId === 'dashboard' ? activeLinkClasses : ''}`}
-          onClick={() => setActiveView({ type: 'dashboard', id: 'dashboard' })}
-        >
-          <DashboardIcon />
-          Dashboard
-        </div>
 
-        {/* Plugin Links */}
+      {/* Main navigation area - scrollable */}
+      <nav className="flex-1 px-2 py-4 overflow-y-auto">
+        <a
+          href="#"
+          onClick={(e) => { e.preventDefault(); setActiveView('dashboard'); }}
+          className={`flex items-center px-4 py-2 hover:bg-gray-700 rounded-md ${
+            activeView === 'dashboard' ? 'bg-indigo-600' : ''
+          }`}
+        >
+          <Squares2X2Icon className="h-6 w-6 mr-3" />
+          Dashboard
+        </a>
         {plugins.map((plugin) => (
-          <div
+          <a
             key={plugin.id}
-            className={`${navLinkClasses} ${activeViewId === plugin.id ? activeLinkClasses : ''}`}
-            onClick={() => setActiveView({ type: 'plugin', id: plugin.id })}
+            href="#"
+            onClick={(e) => { e.preventDefault(); setActiveView(plugin.id); }}
+            className={`flex items-center px-4 py-2 mt-2 hover:bg-gray-700 rounded-md ${
+              activeView === plugin.id ? 'bg-indigo-600' : ''
+            }`}
           >
-            <PluginIcon />
-            {plugin.manifest.name}
-          </div>
+            {getIcon(plugin.manifest.icon)}
+            <span className="mx-4 font-medium">{plugin.manifest.name}</span>
+          </a>
         ))}
       </nav>
-       {/* Settings Link at the bottom */}
-       <div className="p-3 space-y-2 border-t border-gray-700">
-        <div
-            className={`${navLinkClasses} ${activeViewId === 'settings' ? activeLinkClasses : ''}`}
-            onClick={() => setActiveView({ type: 'settings', id: 'settings' })}
+
+      {/* Bottom-aligned settings button */}
+      <div className="px-2 py-4 mt-auto flex-shrink-0">
+        <a
+          href="#"
+          onClick={(e) => { e.preventDefault(); setActiveView('settings'); }}
+          className={`flex items-center px-4 py-2 text-gray-100 hover:bg-gray-700 rounded-md ${
+            activeView === 'settings' ? 'bg-gray-700' : ''
+          }`}
         >
-            <SettingsIcon />
-            Settings
-        </div>
-       </div>
-    </aside>
+          <CogIcon className="h-6 w-6 mr-3" />
+          Settings
+        </a>
+      </div>
+    </div>
   );
-};
+}
 
 export default Sidebar;

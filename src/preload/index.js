@@ -1,96 +1,47 @@
-const { contextBridge, ipcRenderer, shell } = require('electron');
-console.log('Preload: Shell object status:', typeof shell, shell); 
+import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // General App APIs
+  // This now asynchronously gets the path from the main process
+  getPreloadPath: () => ipcRenderer.invoke('get-preload-path'),
+
+  // === Getters ===
   getPlugins: () => ipcRenderer.invoke('get-plugins'),
-  
-  // Global Settings APIs
   getGlobalSetting: (key) => ipcRenderer.invoke('db-get-global-setting', key),
-  setGlobalSetting: (key, value) => ipcRenderer.invoke('db-set-global-setting', key, value),
-
-  // Plugin Specific APIs
   getPluginSettings: (pluginId) => ipcRenderer.invoke('db-get-plugin-settings', pluginId),
-  setPluginSetting: (pluginId, key, value) => ipcRenderer.invoke('db-set-plugin-setting', pluginId, key, value),
-  regenerateTables: (pluginId) => ipcRenderer.invoke('plugin-regenerate-tables', pluginId),
-  
-  // Lottie Animation Data Getter
-  getLottieAnimation: (pluginId, animationPath) => ipcRenderer.invoke('get-lottie-animation', pluginId, animationPath),
-  
-  // Plugin Database Query APIs (for custom plugin tables)
-  // UPDATED: Standardized to use '-query' suffix for clarity and consistency
-  dbRunQuery: (pluginId, sql, params = []) => ipcRenderer.invoke('db-run-query', pluginId, sql, params),
-  dbGetQuery: (pluginId, sql, params = []) => ipcRenderer.invoke('db-get-query', pluginId, sql, params),
-  dbAllQuery: (pluginId, sql, params = []) => ipcRenderer.invoke('db-all-query', pluginId, sql, params),
+  getAllTables: () => ipcRenderer.invoke('db-get-all-tables'),
+  getTableContent: (tableName) => ipcRenderer.invoke('db-get-table-content', tableName),
+  getOSInfo: (infoType) => ipcRenderer.invoke('get-os-info', infoType),
 
-  // Database Manager APIs (Global)
-  dbGetAllTables: () => ipcRenderer.invoke('db-get-all-tables'),
-  dbGetTableContent: (tableName) => ipcRenderer.invoke('db-get-table-content', tableName),
-  dbDropTable: (tableName) => ipcRenderer.invoke('db-drop-table', tableName),
-  dbDeleteRow: (tableName, rowid) => ipcRenderer.invoke('db-delete-row', tableName, rowid),
+  // === Setters ===
+  setGlobalSetting: (key, value) => ipcRenderer.invoke('db-set-global-setting', { key, value }),
+  setPluginSetting: (pluginId, key, value) => ipcRenderer.invoke('db-set-plugin-setting', { pluginId, key, value }),
 
-  // Generic Plugin Service Call API (for plugin backend services)
-  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args), 
-  on: (channel, callback) => {
-    const validChannels = ['auth-success', 'auth-failure', 'plugin-modal-request']; 
-    if (validChannels.includes(channel)) {
-      const wrappedCallback = (event, ...args) => callback(...args);
-      ipcRenderer.on(channel, wrappedCallback);
-      return () => ipcRenderer.removeListener(channel, wrappedCallback);
-    }
-  },
-  'plugin:service-call': (payload) => ipcRenderer.invoke('plugin:service-call', payload),
+  // === Actions ===
+  deleteRow: (tableName, rowid) => ipcRenderer.invoke('db-delete-row', { tableName, rowid }),
+  dropTable: (tableName) => ipcRenderer.invoke('db-drop-table', tableName),
+  regeneratePluginTables: (pluginId) => ipcRenderer.invoke('plugin-regenerate-tables', pluginId),
+  openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
+  copyToClipboard: (data, format) => ipcRenderer.invoke('copy-to-clipboard', { data, format }),
 
-  // NEW: IPC call to request main process to open a plugin-specific modal
-  openPluginSpecificModal: (payload) => ipcRenderer.invoke('open-plugin-specific-modal', payload),
-  // NEW: API for plugins to request showing a toast message in the main window
-  showToast: (options) => ipcRenderer.send('show-toast-from-plugin', options),
-
-  // ADDED: Open external link using Electron's shell module
-  openExternalLink: (url) => shell.openExternal(url),
-
-  // OS related APIs (now routed via main process for security)
-  os: {
-    hostname: () => ipcRenderer.invoke('get-os-hostname'),
-    type: () => ipcRenderer.invoke('get-os-type'),
-    platform: () => ipcRenderer.invoke('get-os-platform'),
-    arch: () => ipcRenderer.invoke('get-os-arch'),
-    release: () => ipcRenderer.invoke('get-os-release'),
-    uptime: () => ipcRenderer.invoke('get-os-uptime'),
-    loadavg: () => ipcRenderer.invoke('get-os-loadavg'),
-    totalmem: () => ipcRenderer.invoke('get-os-totalmem'),
-    freemem: () => ipcRenderer.invoke('get-os-freemem'),
-    cpus: () => ipcRenderer.invoke('get-os-cpus'),
-    networkInterfaces: () => ipcRenderer.invoke('get-os-network-interfaces'),
-  },
-
-  // --- NEW: Core UI Interactions & Features (from our discussion) ---
-
-  // Dialogs for confirmations, errors, and info (used by plugins)
-  showConfirmationDialog: (title, message) => ipcRenderer.invoke('show-confirmation-dialog', title, message),
-  showErrorDialog: (title, message) => ipcRenderer.invoke('show-error-dialog', title, message),
-  showInfoDialog: (title, message) => ipcRenderer.invoke('show-info-dialog', title, message),
-
-  // File Dialogs (for plugin-initiated file open/save)
+  // === Dialogs ===
+  showConfirmationDialog: (options) => ipcRenderer.invoke('show-confirmation-dialog', options),
+  showErrorDialog: (options) => ipcRenderer.invoke('show-error-dialog', options),
+  showInfoDialog: (options) => ipcRenderer.invoke('show-info-dialog', options),
   showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
   showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
 
-  // Clipboard (for "Copy for X" feature)
-  writeToClipboard: (payload) => ipcRenderer.invoke('write-to-clipboard', payload),
+  // === Notifications & Toasts ===
+  showNotification: (options) => ipcRenderer.invoke('show-notification', options),
+  onShowToast: (callback) => {
+    const listener = (event, options) => callback(options);
+    ipcRenderer.on('show-toast', listener);
+    // Return a cleanup function to be called on component unmount
+    return () => {
+      ipcRenderer.removeListener('show-toast', listener);
+    };
+  },
 
-  // System Notifications (for reminders)
-  showSystemNotification: (payload) => ipcRenderer.invoke('show-system-notification', payload),
-
-  /**
-   * Allows any sandboxed plugin to require a Node.js module.
-   * NOTE: This is generally discouraged for security in renderers.
-   * Prefer using plugin backend services (`service.js`) or specific IPC calls.
-   * This is kept for compatibility but its use should be minimized.
-   * @param {string} moduleName - The name of the module to require.
-   * @returns {any} The required module.
-   */
-  require: (moduleName) => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require(moduleName); 
-  }
+  // === Plugin Specific Calls ===
+  // This is a generic way to call any method on a plugin's backend service
+  callPluginService: (pluginId, method, params) => ipcRenderer.invoke('plugin:service-call', { pluginId, method, params }),
 });

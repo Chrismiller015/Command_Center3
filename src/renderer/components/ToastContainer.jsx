@@ -1,15 +1,25 @@
 import React from 'react';
-import Toast from './Toast';
+import { ToastContainer as ReactToastifyContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
-const ToastContainer = ({ toasts, onDismiss }) => {
+/**
+ * This component is the container that holds and displays all toast notifications.
+ * It should be placed once in the main App component.
+ */
+const ToastContainer = () => {
   return (
-    <div className="fixed top-10 right-0 z-50 p-4 w-full max-w-xs">
-      <div className="flex flex-col items-end space-y-2">
-        {toasts.map((toast) => (
-          <Toast key={toast.id} toast={toast} onDismiss={onDismiss} />
-        ))}
-      </div>
-    </div>
+    <ReactToastifyContainer
+      position="bottom-right"
+      autoClose={5000}
+      hideProgressBar={false}
+      newestOnTop={false}
+      closeOnClick
+      rtl={false}
+      pauseOnFocusLoss
+      draggable
+      pauseOnHover
+      theme="dark"
+    />
   );
 };
 
