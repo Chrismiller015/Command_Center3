@@ -189,77 +189,13 @@ export function showEventDetails(event) {
     // Clear previous actions first
     modalActions.innerHTML = ''; 
 
-    // Add Google Calendar button (always present if htmlLink exists)
-    if (event.htmlLink) {
-        const viewInCalendarBtn = document.createElement('button');
-        viewInCalendarBtn.className = 'btn btn-secondary mr-2'; 
-        viewInCalendarBtn.textContent = 'Google Calendar'; // Changed text to "Google Calendar"
-        viewInCalendarBtn.onclick = () => window.electronAPI.openExternalLink(event.htmlLink);
-        modalActions.appendChild(viewInCalendarBtn);
-    }
+    // Removed: Add Google Calendar button
+    // The previous block that added the "Google Calendar" button is now removed.
 
-    // RSVP buttons (Conditional display)
-    if (event.attendees && event.attendees.some(a => a.self)) {
-        const selfAttendee = event.attendees.find(a => a.self);
-        
-        // Clone new buttons to ensure fresh event listeners
-        const newAcceptBtn = acceptBtn.cloneNode(true);
-        const newDeclineBtn = declineBtn.cloneNode(true);
+    // Ensure accept and decline buttons are hidden if they were ever visible
+    if (acceptBtn) acceptBtn.classList.add('hidden');
+    if (declineBtn) declineBtn.classList.add('hidden');
 
-        // Remove previous references from DOM
-        // This is crucial to prevent duplicate listeners if `acceptBtn` or `declineBtn` 
-        // refer to previous elements that were already appended to `modalActions`.
-        if (acceptBtn.parentNode && acceptBtn.parentNode === modalActions) {
-            modalActions.removeChild(acceptBtn);
-        }
-        if (declineBtn.parentNode && declineBtn.parentNode === modalActions) {
-            modalActions.removeChild(declineBtn);
-        }
-
-        // Clear active classes from cloned buttons
-        newAcceptBtn.classList.remove('btn-active');
-        newDeclineBtn.classList.remove('btn-active');
-
-        // Conditional display and appending
-        if (selfAttendee.responseStatus === 'accepted') {
-            newAcceptBtn.classList.add('hidden'); // Hide accepted button
-            newDeclineBtn.classList.remove('hidden'); // Show decline button
-            modalActions.appendChild(newDeclineBtn);
-        } else if (selfAttendee.responseStatus === 'declined') {
-            newAcceptBtn.classList.remove('hidden'); // Show accept button
-            newDeclineBtn.classList.add('hidden'); // Hide declined button
-            modalActions.appendChild(newAcceptBtn);
-        } else { // tentative, needsAction, or other statuses
-            newAcceptBtn.classList.remove('hidden'); // Show both
-            newDeclineBtn.classList.remove('hidden'); // Show both
-            modalActions.appendChild(newDeclineBtn);
-            modalActions.appendChild(newAcceptBtn);
-        }
-
-        newAcceptBtn.onclick = async () => {
-            console.log("[Calendar Plugin] Accepting event...");
-            await api.updateEventResponse(event.id, 'accepted', event.organizer.email, selfAttendee.email);
-            detailsModal.classList.add('hidden');
-            window.electronAPI.showToast('Event accepted!', 'success');
-            window.dispatchEvent(new CustomEvent('calendar-refresh-requested'));
-        };
-        newDeclineBtn.onclick = async () => {
-            console.log("[Calendar Plugin] Declining event...");
-            await api.updateEventResponse(event.id, 'declined', event.organizer.email, selfAttendee.email);
-            detailsModal.classList.add('hidden');
-            window.electronAPI.showToast('Event declined!', 'info');
-            window.dispatchEvent(new CustomEvent('calendar-refresh-requested'));
-        };
-
-        // Update references to the new buttons for next call
-        acceptBtn = newAcceptBtn;
-        declineBtn = newDeclineBtn;
-
-    } else {
-        // If no self attendee, ensure buttons are hidden
-        acceptBtn.classList.add('hidden');
-        declineBtn.classList.add('hidden');
-    }
 
     detailsModal.classList.remove('hidden');
 }

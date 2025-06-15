@@ -23,7 +23,9 @@ function createWindow() {
     ...(process.platform === 'linux' ? { icon: join(__dirname, '../../build/icon.png') } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: false, // Keeping sandbox false for now as per your original file structure and explicit 'require' in preload
+      nodeIntegration: false, // IMPORTANT: Set nodeIntegration to false for security and contextIsolation to work as expected
+      contextIsolation: true, // IMPORTANT: Enable contextIsolation to properly expose APIs via contextBridge
       webviewTag: true
     }
   });
@@ -56,6 +58,7 @@ function createWindow() {
       }
     } catch (e) {
         console.error("Error in will-attach-webview:", e);
+        // Fallback to secure settings in case of error
         webPreferences.nodeIntegration = false;
         webPreferences.contextIsolation = true;
         webPreferences.preload = join(__dirname, '../preload/index.js');

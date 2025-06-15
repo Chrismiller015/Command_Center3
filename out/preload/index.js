@@ -1,5 +1,6 @@
 "use strict";
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, shell } = require("electron");
+console.log("Preload: Shell object status:", typeof shell, shell);
 contextBridge.exposeInMainWorld("electronAPI", {
   // General App APIs
   getPlugins: () => ipcRenderer.invoke("get-plugins"),
@@ -35,6 +36,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openPluginSpecificModal: (payload) => ipcRenderer.invoke("open-plugin-specific-modal", payload),
   // NEW: API for plugins to request showing a toast message in the main window
   showToast: (options) => ipcRenderer.send("show-toast-from-plugin", options),
+  // ADDED: Open external link using Electron's shell module
+  openExternalLink: (url) => shell.openExternal(url),
   // OS related APIs (now routed via main process for security)
   os: {
     hostname: () => ipcRenderer.invoke("get-os-hostname"),

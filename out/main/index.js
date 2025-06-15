@@ -238,6 +238,11 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       sandbox: false,
+      // Keeping sandbox false for now as per your original file structure and explicit 'require' in preload
+      nodeIntegration: false,
+      // IMPORTANT: Set nodeIntegration to false for security and contextIsolation to work as expected
+      contextIsolation: true,
+      // IMPORTANT: Enable contextIsolation to properly expose APIs via contextBridge
       webviewTag: true
     }
   });

@@ -164,7 +164,12 @@ export const clearAuthData = async () => {
 export const acceptMeeting = async ({ eventId, calendarId, attendeeEmail }) => {
     const client = await getAuthClient();
     const calendar = google.calendar({ version: 'v3', auth: client });
-    const event = await calendar.events.get({ calendarId, eventId });
+
+    // FIX: Sanitize eventId by removing any leading underscore if present
+    const cleanedEventId = eventId.startsWith('_') ? eventId.substring(1) : eventId;
+    console.log(`[${PLUGIN_ID} Service] acceptMeeting - Original Event ID: ${eventId}, Cleaned Event ID: ${cleanedEventId}`);
+
+    const event = await calendar.events.get({ calendarId, eventId: cleanedEventId });
     const attendees = event.data.attendees || [];
     const selfIndex = attendees.findIndex(a => a.email === attendeeEmail);
     if (selfIndex !== -1) {
@@ -174,16 +179,21 @@ export const acceptMeeting = async ({ eventId, calendarId, attendeeEmail }) => {
     }
     await calendar.events.patch({
         calendarId,
-        eventId,
+        eventId: cleanedEventId, // Use cleaned ID here too
         requestBody: { attendees }
     });
     return { success: true };
 };
 
-export const declineMeeting = async ({ eventId, calendarId, attendeeEmail }) => { // New function
+export const declineMeeting = async ({ eventId, calendarId, attendeeEmail }) => {
     const client = await getAuthClient();
     const calendar = google.calendar({ version: 'v3', auth: client });
-    const event = await calendar.events.get({ calendarId, eventId });
+
+    // FIX: Sanitize eventId by removing any leading underscore if present
+    const cleanedEventId = eventId.startsWith('_') ? eventId.substring(1) : eventId;
+    console.log(`[${PLUGIN_ID} Service] declineMeeting - Original Event ID: ${eventId}, Cleaned Event ID: ${cleanedEventId}`);
+
+    const event = await calendar.events.get({ calendarId, eventId: cleanedEventId });
     const attendees = event.data.attendees || [];
     const selfIndex = attendees.findIndex(a => a.email === attendeeEmail);
     if (selfIndex !== -1) {
@@ -193,7 +203,7 @@ export const declineMeeting = async ({ eventId, calendarId, attendeeEmail }) => 
     }
     await calendar.events.patch({
         calendarId,
-        eventId,
+        eventId: cleanedEventId, // Use cleaned ID here too
         requestBody: { attendees }
     });
     return { success: true };
