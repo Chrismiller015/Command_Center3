@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   "plugin:service-call": (payload) => ipcRenderer.invoke("plugin:service-call", payload),
   // NEW: IPC call to request main process to open a plugin-specific modal
   openPluginSpecificModal: (payload) => ipcRenderer.invoke("open-plugin-specific-modal", payload),
+  // NEW: API for plugins to request showing a toast message in the main window
+  showToast: (options) => ipcRenderer.send("show-toast-from-plugin", options),
   // OS related APIs (now routed via main process for security)
   os: {
     hostname: () => ipcRenderer.invoke("get-os-hostname"),

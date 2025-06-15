@@ -245,6 +245,13 @@ ipcMain.on('show-toast', (event, toastOptions) => {
     }
 });
 
+// NEW: Handle show-toast-from-plugin event
+ipcMain.on('show-toast-from-plugin', (event, toastOptions) => {
+    if (mainWindow) {
+        mainWindow.webContents.send('show-toast', toastOptions);
+    }
+});
+
 ipcMain.handle('db-get-all-tables', async () => {
     return await db.getAllTables();
 });

@@ -15,10 +15,10 @@ async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
         console.log(`[Calendar Plugin] Copied to clipboard: ${text}`);
-        window.api.showToast('Copied to clipboard!', 'success'); // CHANGED: Use window.api.showToast
+        window.electronAPI.showToast('Copied to clipboard!', 'success');
     } catch (err) {
         console.error('[Calendar Plugin] Failed to copy to clipboard:', err);
-        window.api.showToast('Failed to copy', 'error'); // CHANGED: Use window.api.showToast
+        window.electronAPI.showToast('Failed to copy', 'error');
     }
 }
 
@@ -238,16 +238,16 @@ export function showEventDetails(event) {
 
         newAcceptBtn.onclick = async () => {
             console.log("[Calendar Plugin] Accepting event...");
-            await api.updateEventResponse(event.id, 'accepted'); // Use api.updateEventResponse
+            await api.updateEventResponse(event.id, 'accepted', event.organizer.email, selfAttendee.email);
             detailsModal.classList.add('hidden');
-            window.api.showToast('Event accepted!', 'success'); // CHANGED: Use window.api.showToast
+            window.electronAPI.showToast('Event accepted!', 'success');
             window.dispatchEvent(new CustomEvent('calendar-refresh-requested'));
         };
         newDeclineBtn.onclick = async () => {
             console.log("[Calendar Plugin] Declining event...");
-            await api.updateEventResponse(event.id, 'declined'); // Use api.updateEventResponse
+            await api.updateEventResponse(event.id, 'declined', event.organizer.email, selfAttendee.email);
             detailsModal.classList.add('hidden');
-            window.api.showToast('Event declined!', 'info'); // CHANGED: Use window.api.showToast
+            window.electronAPI.showToast('Event declined!', 'info');
             window.dispatchEvent(new CustomEvent('calendar-refresh-requested'));
         };
 

@@ -427,6 +427,11 @@ electron.ipcMain.on("show-toast", (event, toastOptions) => {
     mainWindow.webContents.send("show-toast", toastOptions);
   }
 });
+electron.ipcMain.on("show-toast-from-plugin", (event, toastOptions) => {
+  if (mainWindow) {
+    mainWindow.webContents.send("show-toast", toastOptions);
+  }
+});
 electron.ipcMain.handle("db-get-all-tables", async () => {
   return await db$1.getAllTables();
 });
