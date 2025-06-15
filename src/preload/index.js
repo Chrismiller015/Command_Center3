@@ -28,14 +28,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Generic Plugin Service Call API (for plugin backend services)
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args), 
-
-  // --- NEW: UI Services API ---
-  ui: {
-    showToast: (options) => ipcRenderer.send('show-toast', options),
-  },
-  
   on: (channel, callback) => {
-    const validChannels = ['auth-success', 'auth-failure', 'plugin-modal-request', 'show-toast']; 
+    const validChannels = ['auth-success', 'auth-failure', 'plugin-modal-request']; 
     if (validChannels.includes(channel)) {
       const wrappedCallback = (event, ...args) => callback(...args);
       ipcRenderer.on(channel, wrappedCallback);
@@ -44,11 +38,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   'plugin:service-call': (payload) => ipcRenderer.invoke('plugin:service-call', payload),
 
-  // IPC call to request main process to open a plugin-specific modal
+  // NEW: IPC call to request main process to open a plugin-specific modal
   openPluginSpecificModal: (payload) => ipcRenderer.invoke('open-plugin-specific-modal', payload),
-
-  // --- NEW: API to open external links ---
-  openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
 
   // OS related APIs (now routed via main process for security)
   os: {
@@ -65,6 +56,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     networkInterfaces: () => ipcRenderer.invoke('get-os-network-interfaces'),
   },
 
+  /**
+   * Allows any sandboxed plugin to require a Node.js module.
+   * NOTE: This is generally discouraged for security in renderers.
+   * Prefer using plugin backend services (`service.js`) or specific IPC calls.
+   * This is kept for compatibility but its use should be minimized.
+   * @param {string} moduleName - The name of the module to require.
+   * @returns {any} The required module.
+   */
   require: (moduleName) => {
     return require(moduleName); 
   }
