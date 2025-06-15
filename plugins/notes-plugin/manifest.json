@@ -1,7 +1,7 @@
 {
     "name": "Notes",
     "version": "1.0.0",
-    "description": "A rich-text note-taking plugin with tagging and search functionality.",
+    "description": "A rich-text note-taking plugin with advanced organization, search, and collaboration features.",
     "entryPoint": "index.html",
     "dependencies": {},
     "settings": [],
@@ -11,9 +11,63 @@
             "columns": [
                 { "name": "id", "type": "INTEGER PRIMARY KEY AUTOINCREMENT" },
                 { "name": "content", "type": "TEXT" },
-                { "name": "tags", "type": "TEXT" },
+                { "name": "tags_json", "type": "TEXT" },
+                { "name": "folderId", "type": "INTEGER" },
+                { "name": "isPinned", "type": "BOOLEAN DEFAULT 0" },
                 { "name": "createdAt", "type": "DATETIME NOT NULL" },
                 { "name": "updatedAt", "type": "DATETIME NOT NULL" }
+            ]
+        },
+        {
+            "name": "folders",
+            "columns": [
+                { "name": "id", "type": "INTEGER PRIMARY KEY AUTOINCREMENT" },
+                { "name": "name", "type": "TEXT NOT NULL" },
+                { "name": "parentId", "type": "INTEGER" }
+            ]
+        },
+        {
+            "name": "tags",
+            "columns": [
+                { "name": "id", "type": "INTEGER PRIMARY KEY AUTOINCREMENT" },
+                { "name": "name", "type": "TEXT NOT NULL UNIQUE" }
+            ]
+        },
+        {
+            "name": "note_tags",
+            "columns": [
+                { "name": "noteId", "type": "INTEGER" },
+                { "name": "tagId", "type": "INTEGER" },
+                { "name": "PRIMARY KEY", "type": "(noteId, tagId)" }
+            ]
+        },
+        {
+            "name": "note_versions",
+            "columns": [
+                { "name": "id", "type": "INTEGER PRIMARY KEY AUTOINCREMENT" },
+                { "name": "noteId", "type": "INTEGER NOT NULL" },
+                { "name": "content", "type": "TEXT" },
+                { "name": "versionTimestamp", "type": "DATETIME NOT NULL" }
+            ]
+        },
+        {
+            "name": "note_links",
+            "columns": [
+                { "name": "sourceNoteId", "type": "INTEGER NOT NULL" },
+                { "name": "targetNoteId", "type": "INTEGER NOT NULL" },
+                { "name": "linkType", "type": "TEXT DEFAULT 'bi-directional'" },
+                { "name": "PRIMARY KEY", "type": "(sourceNoteId, targetNoteId)" }
+            ]
+        },
+        {
+            "name": "reminders",
+            "columns": [
+                { "name": "id", "type": "INTEGER PRIMARY KEY AUTOINCREMENT" },
+                { "name": "noteId", "type": "INTEGER NOT NULL" },
+                { "name": "targetDate", "type": "DATETIME NOT NULL" },
+                { "name": "status", "type": "TEXT DEFAULT 'pending'" },
+                { "name": "message", "type": "TEXT" },
+                { "name": "contextRef", "type": "TEXT" }
             ]
         }
     ]

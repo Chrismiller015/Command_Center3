@@ -1,5 +1,4 @@
-const { contextBridge, ipcRenderer, shell } = require('electron'); // 'shell' is now included in the destructuring
-// Add this line temporarily for debugging:
+const { contextBridge, ipcRenderer, shell } = require('electron');
 console.log('Preload: Shell object status:', typeof shell, shell); 
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -19,8 +18,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLottieAnimation: (pluginId, animationPath) => ipcRenderer.invoke('get-lottie-animation', pluginId, animationPath),
   
   // Plugin Database Query APIs (for custom plugin tables)
-  dbRun: (pluginId, sql, params = []) => ipcRenderer.invoke('db-run-query', pluginId, sql, params),
-  dbAll: (pluginId, sql, params = []) => ipcRenderer.invoke('db-all-query', pluginId, sql, params),
+  // UPDATED: Standardized to use '-query' suffix for clarity and consistency
+  dbRunQuery: (pluginId, sql, params = []) => ipcRenderer.invoke('db-run-query', pluginId, sql, params),
+  dbGetQuery: (pluginId, sql, params = []) => ipcRenderer.invoke('db-get-query', pluginId, sql, params),
+  dbAllQuery: (pluginId, sql, params = []) => ipcRenderer.invoke('db-all-query', pluginId, sql, params),
 
   // Database Manager APIs (Global)
   dbGetAllTables: () => ipcRenderer.invoke('db-get-all-tables'),
@@ -63,6 +64,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     networkInterfaces: () => ipcRenderer.invoke('get-os-network-interfaces'),
   },
 
+  // --- NEW: Core UI Interactions & Features (from our discussion) ---
+
+  // Dialogs for confirmations, errors, and info (used by plugins)
+  showConfirmationDialog: (title, message) => ipcRenderer.invoke('show-confirmation-dialog', title, message),
+  showErrorDialog: (title, message) => ipcRenderer.invoke('show-error-dialog', title, message),
+  showInfoDialog: (title, message) => ipcRenderer.invoke('show-info-dialog', title, message),
+
+  // File Dialogs (for plugin-initiated file open/save)
+  showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
+  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
+
+  // Clipboard (for "Copy for X" feature)
+  writeToClipboard: (payload) => ipcRenderer.invoke('write-to-clipboard', payload),
+
+  // System Notifications (for reminders)
+  showSystemNotification: (payload) => ipcRenderer.invoke('show-system-notification', payload),
+
   /**
    * Allows any sandboxed plugin to require a Node.js module.
    * NOTE: This is generally discouraged for security in renderers.
@@ -72,6 +90,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns {any} The required module.
    */
   require: (moduleName) => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require(moduleName); 
   }
 });

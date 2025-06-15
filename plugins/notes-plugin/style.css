@@ -1,0 +1,27 @@
+body {
+    background-color: #111827; /* bg-gray-900 */
+    color: #d1d5db; /* text-gray-300 */
+    font-family: 'Inter', sans-serif;
+    overflow-y: hidden;
+}
+/* Style the Quill editor toolbar and content area */
+.ql-toolbar {
+    background-color: #1f2937; /* bg-gray-800 */
+    border: 1px solid #374151 !important; /* border-gray-700 */
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+}
+.ql-container {
+    background-color: #374151; /* bg-gray-700 */
+    border: 1px solid #374151 !important; /* border-gray-700 */
+    border-bottom-left-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+    color: #d1d5db;
+    font-size: 1rem;
+    height: calc(100vh - 280px); /* Adjust height as needed */
+}
+.ql-snow .ql-stroke { stroke: #9ca3af; }
+.ql-snow .ql-fill, .ql-snow .ql-stroke.ql-fill { fill: #9ca3af; }
+.ql-snow .ql-picker { color: #9ca3af; }
+.note-item.active { background-color: #4f46e5; } /* bg-indigo-600 */
+.note-item.active h3, .note-item.active p { color: white; }
