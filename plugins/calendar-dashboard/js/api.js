@@ -14,6 +14,7 @@ export const getCalendarList = () => invokeService('getCalendarList');
 export const clearAuthData = () => invokeService('clearAuthData');
 export const saveCredentialsAndGetAuthUrl = (params) => invokeService('saveCredentialsAndGetAuthUrl', params);
 export const acceptMeeting = (params) => invokeService('acceptMeeting', params);
+export const declineMeeting = (params) => invokeService('declineMeeting', params); // New line
 export const updateCalendarColor = (params) => invokeService('updateCalendarColor', params);
 
 export const getPluginSettings = () => window.electronAPI.getPluginSettings(PLUGIN_ID);

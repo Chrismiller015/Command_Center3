@@ -180,6 +180,25 @@ export const acceptMeeting = async ({ eventId, calendarId, attendeeEmail }) => {
     return { success: true };
 };
 
+export const declineMeeting = async ({ eventId, calendarId, attendeeEmail }) => { // New function
+    const client = await getAuthClient();
+    const calendar = google.calendar({ version: 'v3', auth: client });
+    const event = await calendar.events.get({ calendarId, eventId });
+    const attendees = event.data.attendees || [];
+    const selfIndex = attendees.findIndex(a => a.email === attendeeEmail);
+    if (selfIndex !== -1) {
+        attendees[selfIndex].responseStatus = 'declined';
+    } else {
+        throw new Error("Could not find your email in the attendee list to update status.");
+    }
+    await calendar.events.patch({
+        calendarId,
+        eventId,
+        requestBody: { attendees }
+    });
+    return { success: true };
+};
+
 export const getEvents = async () => {
     const client = await getAuthClient();
     const settings = await getSettings();

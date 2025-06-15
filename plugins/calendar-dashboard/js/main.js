@@ -1,3 +1,5 @@
+console.log('[Calendar Plugin] main.js loaded and executing.'); // ADD THIS LINE AT THE VERY TOP
+
 import * as api from './api.js';
 import * as dom from './dom.js';
 import * as modals from './modals.js';

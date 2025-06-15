@@ -1,26 +1,29 @@
+console.log('[Calendar Plugin] views.js file PARSED.');
+
 import * as api from './api.js';
 import * as utils from './utils.js';
 import * as dom from './dom.js';
-import { showEventDetails } from './modals.js';
+import { showEventDetails } from './modals.js'; 
 
 /**
  * This is the main function for loading and displaying the entire calendar view.
  */
 export async function loadCalendar() {
-    // dom.showMessage("Loading Calendar..."); // Temporarily disabled for debugging.
+    console.log('[Calendar Plugin] loadCalendar function CALLED.');
     try {
-        // Step 1: Fetch all necessary data from the backend first.
         const calendarData = await api.getEvents();
+        console.log('[Calendar Plugin] Calendar data fetched:', calendarData);
         
-        // Step 2: Switch to the main content view, making its elements available.
         dom.switchView('main-view');
+        console.log('[Calendar Plugin] Switched to main-view.');
 
-        // Step 3: Defer rendering to the next event loop cycle to ensure DOM is ready.
         setTimeout(() => {
+            console.log('[Calendar Plugin] setTimeout for renderCalendarView triggered.');
             renderCalendarView(calendarData);
         }, 0);
 
     } catch (error) {
+        console.error(`[Calendar Plugin] Error loading calendar: ${error.message}`, error);
         dom.showMessage(`Could not load events: ${error.message}`, true);
     }
 }
@@ -31,36 +34,38 @@ export async function loadCalendar() {
  * @param {object} calendarData - The event data fetched from the backend.
  */
 function renderCalendarView(calendarData) {
-    console.log("Rendering calendar view with data...");
+    console.log("[Calendar Plugin] renderCalendarView CALLED with data.");
     const { upcomingEvents, displayDateKeys } = calendarData;
+    console.log('[Calendar Plugin] Upcoming events:', upcomingEvents);
+    console.log('[Calendar Plugin] Display date keys:', displayDateKeys);
     
-    // --- Find all necessary elements ---
     const nextMeetingDetails = dom.findElOrLog('next-meeting-details', 'renderCalendarView');
     const joinNextMeetingBtn = dom.findElOrLog('join-next-meeting-btn', 'renderCalendarView');
     const videoContainer = dom.findElOrLog('video-container', 'renderCalendarView');
     const agendaGrid = dom.findElOrLog('agenda-grid', 'renderCalendarView');
     
     if (!nextMeetingDetails || !joinNextMeetingBtn || !videoContainer || !agendaGrid) {
+        console.error("[Calendar Plugin] Critical view elements missing during render:", { nextMeetingDetails, joinNextMeetingBtn, videoContainer, agendaGrid });
         throw new Error("One or more critical view elements are missing from the DOM during render.");
     }
 
-    // --- Render Next Upcoming Meeting ---
     const now = new Date();
     const nextMeeting = upcomingEvents.find(event => event.start.dateTime && new Date(event.start.dateTime).getTime() >= now.getTime());
 
     if (nextMeeting && nextMeeting.start.dateTime.startsWith(now.toISOString().split('T')[0])) {
+        console.log('[Calendar Plugin] Rendering next meeting:', nextMeeting.summary);
         nextMeetingDetails.innerHTML = `<h4 class="text-xl font-bold text-white mb-1 truncate">${nextMeeting.summary||'No Title'}</h4><p class="text-indigo-300 text-sm">${utils.formatTime(nextMeeting.start.dateTime)} on ${utils.formatDate(nextMeeting.start.dateTime)}</p>`;
         const link = utils.getMeetingLink(nextMeeting);
         joinNextMeetingBtn.classList.toggle('hidden', !link);
         if (link) joinNextMeetingBtn.onclick = () => window.electronAPI.openExternalLink(link);
         videoContainer.classList.add('hidden');
     } else {
+        console.log('[Calendar Plugin] No upcoming meetings today.');
         nextMeetingDetails.innerHTML = `<p class="text-gray-400 text-center">Hurray! No more meetings today!</p>`;
         joinNextMeetingBtn.classList.add('hidden');
         videoContainer.classList.remove('hidden');
     }
     
-    // --- Render Agenda Grid ---
     const eventsByDay = upcomingEvents.reduce((acc,event) => {
         const key = (event.start.dateTime||event.start.date).split('T')[0];
         if(!acc[key])acc[key]={allDay:[],timed:[]};
@@ -68,6 +73,7 @@ function renderCalendarView(calendarData) {
         return acc;
     },{});
 
+    console.log('[Calendar Plugin] Populating agenda grid.');
     agendaGrid.innerHTML = displayDateKeys.map(key => {
         const dayEvs = eventsByDay[key]||{allDay:[],timed:[]};
         const d = new Date(key+'T12:00:00');
@@ -77,6 +83,7 @@ function renderCalendarView(calendarData) {
         return `<div class="day-card card p-4 space-y-2 flex flex-col"><h3 class="text-lg font-bold text-white border-b border-gray-700 pb-2 mb-2">${d.toLocaleDateString(undefined,{weekday:'long'})}, ${d.toLocaleDateString(undefined,{month:'long',day:'numeric'})}</h3>${allDayHTML||timedHTML?allDayHTML+timedHTML:'<p class="text-gray-400 text-sm">No events scheduled.</p>'}</div>`;
     }).join('');
 
+    console.log('[Calendar Plugin] Attaching collapsible header listeners.');
     document.querySelectorAll('.collapsible-header').forEach(h=>{h.addEventListener('click',()=>{const c=document.getElementById(h.dataset.target);c.classList.toggle('hidden');h.querySelector('.collapsible-arrow').classList.toggle('collapsed');localStorage.setItem(`allDayCollapsed_${h.dataset.target.replace('all-day-content-','')}`,c.classList.contains('hidden'))})});
 }
 
@@ -90,7 +97,13 @@ function renderEvent(event) {
     const card = document.createElement('div');
     card.className = 'event-card card p-3 mb-2 flex flex-col';
     card.style.cssText = `border-left-color: ${color}; background: ${gradient}; opacity: ${opacity};`;
-    card.onclick = () => showEventDetails(event);
+    
+    // CHANGED: Using addEventListener instead of onclick attribute
+    card.addEventListener('click', () => {
+        console.log(`[Calendar Plugin] Event card CLICK handler triggered via addEventListener for event: ${event.summary || 'No Title'}`);
+        showEventDetails(event);
+    });
+
     card.innerHTML = `
         <h4 class="font-bold text-md truncate" title="${event.summary || 'No Title'}">${event.summary || 'No Title'}</h4>
         ${!event.start.dateTime ? '' : `<p class="text-sm text-gray-300">${utils.formatTime(event.start.dateTime)}</p>`}
