@@ -1,21 +1,37 @@
-const PLUGIN_ID = 'calendar-dashboard';
+// plugins/calendar-dashboard/js/api.js
 
-function invokeService(method, params = {}) {
-    return window.electronAPI.invoke('plugin:service-call', {
-        pluginId: PLUGIN_ID,
-        method,
-        params
-    });
+// This file contains functions that interact with the Electron main process API.
+
+export async function getEvents() {
+    return window.electronAPI.getCalendarEvents();
 }
 
-export const checkAuthStatus = () => invokeService('checkAuthStatus');
-export const getEvents = () => invokeService('getEvents');
-export const getCalendarList = () => invokeService('getCalendarList');
-export const clearAuthData = () => invokeService('clearAuthData');
-export const saveCredentialsAndGetAuthUrl = (params) => invokeService('saveCredentialsAndGetAuthUrl', params);
-export const acceptMeeting = (params) => invokeService('acceptMeeting', params);
-export const declineMeeting = (params) => invokeService('declineMeeting', params); // New line
-export const updateCalendarColor = (params) => invokeService('updateCalendarColor', params);
+export async function getAuthUrl() {
+    return window.electronAPI.getGoogleAuthUrl();
+}
 
-export const getPluginSettings = () => window.electronAPI.getPluginSettings(PLUGIN_ID);
-export const setPluginSetting = (key, value) => window.electronAPI.setPluginSetting(PLUGIN_ID, key, value);
+export async function checkAuthStatus() {
+    return window.electronAPI.checkGoogleAuthStatus();
+}
+
+export async function saveCredentialsAndGetAuthUrl(clientId, clientSecret) {
+    return window.electronAPI.saveGoogleApiCredentials(clientId, clientSecret);
+}
+
+export async function getPluginSetting(pluginId, key) {
+    return window.electronAPI.getPluginSetting(pluginId, key);
+}
+
+export async function setPluginSetting(pluginId, key, value) {
+    return window.electronAPI.setPluginSetting(pluginId, key, value);
+}
+
+/**
+ * Sends an event response update to the main process.
+ * @param {string} eventId The ID of the event to update.
+ * @param {string} responseStatus The new response status (e.g., 'accepted', 'declined').
+ */
+export async function updateEventResponse(eventId, responseStatus) {
+    // This will send an IPC message to the main process, which then handles the API call to Google.
+    return window.api.updateEventResponse(eventId, responseStatus);
+}

@@ -1,3 +1,4 @@
+// plugins/calendar-dashboard/js/views.js
 console.log('[Calendar Plugin] views.js file PARSED.');
 
 import * as api from './api.js';
@@ -74,14 +75,46 @@ function renderCalendarView(calendarData) {
     },{});
 
     console.log('[Calendar Plugin] Populating agenda grid.');
-    agendaGrid.innerHTML = displayDateKeys.map(key => {
-        const dayEvs = eventsByDay[key]||{allDay:[],timed:[]};
-        const d = new Date(key+'T12:00:00');
-        const collapsed = localStorage.getItem(`allDayCollapsed_${key}`)==='true';
-        const allDayHTML = dayEvs.allDay.length > 0 ? `<div id="all-day-section-${key}"><div class="collapsible-header" data-target="all-day-content-${key}"><h4 class="text-md font-semibold text-indigo-300">All Day</h4><svg class="w-5 h-5 collapsible-arrow ${collapsed?'collapsed':''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg></div><div id="all-day-content-${key}" class="collapsible-content ${collapsed?'hidden':''}">${dayEvs.allDay.map(e => renderEvent(e).outerHTML).join('')}</div></div>` : '';
-        const timedHTML = dayEvs.timed.length > 0 ? `<div class="mt-2"><h4 class="text-md font-semibold text-indigo-300 mb-2">Meetings</h4>${dayEvs.timed.map(e => renderEvent(e).outerHTML).join('')}</div>` : '';
-        return `<div class="day-card card p-4 space-y-2 flex flex-col"><h3 class="text-lg font-bold text-white border-b border-gray-700 pb-2 mb-2">${d.toLocaleDateString(undefined,{weekday:'long'})}, ${d.toLocaleDateString(undefined,{month:'long',day:'numeric'})}</h3>${allDayHTML||timedHTML?allDayHTML+timedHTML:'<p class="text-gray-400 text-sm">No events scheduled.</p>'}</div>`;
-    }).join('');
+    agendaGrid.innerHTML = ''; // Clear existing content first
+
+    displayDateKeys.forEach(key => {
+        const dayEvs = eventsByDay[key] || { allDay: [], timed: [] };
+        const d = new Date(key + 'T12:00:00');
+        const collapsed = localStorage.getItem(`allDayCollapsed_${key}`) === 'true';
+
+        const dayCard = document.createElement('div');
+        dayCard.className = 'day-card card p-4 space-y-2 flex flex-col';
+
+        dayCard.innerHTML = `<h3 class="text-lg font-bold text-white border-b border-gray-700 pb-2 mb-2">${d.toLocaleDateString(undefined, { weekday: 'long' })}, ${d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</h3>`;
+
+        const allDaySection = document.createElement('div');
+        allDaySection.id = `all-day-section-${key}`;
+
+        if (dayEvs.allDay.length > 0) {
+            allDaySection.innerHTML = `<div class="collapsible-header" data-target="all-day-content-${key}"><h4 class="text-md font-semibold text-indigo-300">All Day</h4><svg class="w-5 h-5 collapsible-arrow ${collapsed ? 'collapsed' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg></div>`;
+            const allDayContent = document.createElement('div');
+            allDayContent.id = `all-day-content-${key}`;
+            allDayContent.className = `collapsible-content ${collapsed ? 'hidden' : ''}`;
+            dayEvs.allDay.forEach(e => allDayContent.appendChild(renderEvent(e)));
+            allDaySection.appendChild(allDayContent);
+        }
+        
+        const timedSection = document.createElement('div');
+        if (dayEvs.timed.length > 0) {
+            timedSection.className = "mt-2";
+            timedSection.innerHTML = `<h4 class="text-md font-semibold text-indigo-300 mb-2">Meetings</h4>`;
+            dayEvs.timed.forEach(e => timedSection.appendChild(renderEvent(e)));
+        }
+
+        if (allDaySection.children.length > 0 || timedSection.children.length > 0) {
+            dayCard.appendChild(allDaySection);
+            dayCard.appendChild(timedSection);
+        } else {
+            dayCard.innerHTML += '<p class="text-gray-400 text-sm">No events scheduled.</p>';
+        }
+        
+        agendaGrid.appendChild(dayCard);
+    });
 
     console.log('[Calendar Plugin] Attaching collapsible header listeners.');
     document.querySelectorAll('.collapsible-header').forEach(h=>{h.addEventListener('click',()=>{const c=document.getElementById(h.dataset.target);c.classList.toggle('hidden');h.querySelector('.collapsible-arrow').classList.toggle('collapsed');localStorage.setItem(`allDayCollapsed_${h.dataset.target.replace('all-day-content-','')}`,c.classList.contains('hidden'))})});

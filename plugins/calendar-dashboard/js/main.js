@@ -1,8 +1,10 @@
-console.log('[Calendar Plugin] main.js loaded and executing.'); // ADD THIS LINE AT THE VERY TOP
+// plugins/calendar-dashboard/js/main.js
+
+console.log('[Calendar Plugin] main.js loaded and executing.');
 
 import * as api from './api.js';
 import * as dom from './dom.js';
-import * as modals from './modals.js';
+import * as modals from './modals.js'; // Ensure this import is present
 import * as views from './views.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,13 +29,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     break;
                 case 'details-modal-close-btn':
-                    modals.closeModal('details-modal');
+                    // This might be a generic close button.
+                    // The modals.js now also has its own close listener setup in its init().
+                    // Keep this if modals.closeModal is a generic utility you use elsewhere.
+                    modals.closeModal('details-modal'); 
                     break;
                 case 'calendars-modal-close-btn':
-                    modals.closeModal('calendars-modal');
+                    // Same as above, keep if modals.closeModal is a generic utility.
+                    modals.closeModal('calendars-modal'); 
                     break;
                 case 'confirm-cancel-btn':
-                    modals.closeModal('confirmation-modal');
+                    // Same as above.
+                    modals.closeModal('confirmation-modal'); 
                     break;
             }
         });
@@ -56,7 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function init() {
+    // Renamed from 'init' to 'initAppLogic' to avoid naming collision with modals.init()
+    async function initAppLogic() {
         try {
             const status = await api.checkAuthStatus();
             if (status.isConfigured && status.isAuthenticated) {
@@ -74,6 +82,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Call existing event listeners and app logic initialization first
     attachEventListeners();
-    init();
+    initAppLogic();
+
+    // IMPORTANT: Call modals.init() and modals.initCalendarsModal() AFTER the DOM is fully loaded
+    // and your main application logic has had a chance to set up.
+    modals.init(); // Initialize the main event details modal elements
+    modals.initCalendarsModal(); // Initialize the calendars settings modal elements
 });

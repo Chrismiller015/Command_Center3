@@ -60,13 +60,17 @@
     <div id="message-view" class="h-full flex items-center justify-center text-center"><p id="message-text" class="text-xl text-gray-400">Initializing...</p></div>
 
     <div id="details-modal" class="hidden modal-backdrop">
-        <div class="card w-full max-w-2xl p-6 relative modal-content">
-            <button id="details-modal-close-btn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl">&times;</button>
-            <h2 id="event-detail-title" class="text-xl font-bold text-white mb-1"></h2>
-            <p id="event-detail-time" class="text-indigo-300 text-sm mb-4"></p>
-            <div id="event-detail-description" class="prose text-gray-300 mb-4 overflow-y-auto max-h-48"></div>
+        <div class="card w-full max-w-2xl p-6 relative modal-content max-h-[85vh] overflow-y-auto">
+            <button id="close-details-modal" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl">&times;</button>
+            <h2 id="modal-title" class="text-xl font-bold text-white mb-1"></h2>
+            <p id="modal-time" class="text-indigo-300 text-sm mb-4"></p>
+            <p id="modal-location" class="text-gray-400 text-sm mb-2"></p>
+            <div id="modal-description" class="prose text-gray-300 mb-4"></div>
             
-            <h3 class="text-lg font-bold text-white mb-2">Attendees</h3>
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-bold text-white">Attendees</h3>
+                <button id="copy-all-attendees-btn" class="btn btn-sm btn-outline hidden">Copy All</button> </div>
+
             <div class="overflow-x-auto mb-6">
                 <table class="min-w-full divide-y divide-gray-700">
                     <thead class="bg-gray-700">
@@ -76,17 +80,13 @@
                             <th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Email</th>
                         </tr>
                     </thead>
-                    <tbody id="event-detail-attendees" class="bg-gray-800 divide-y divide-gray-700">
+                    <tbody id="modal-attendees" class="bg-gray-800 divide-y divide-gray-700">
                         </tbody>
                 </table>
             </div>
-
-            <div class="flex justify-between items-center border-t border-gray-700 pt-4">
-                <a id="event-detail-gcal-link" href="#" target="_blank" class="text-blue-400 hover:underline text-sm">View in Google Calendar</a>
-                <div class="flex space-x-2">
-                    <button id="event-detail-decline-btn" class="px-4 py-2 bg-rose-600 text-white rounded-md hover:bg-rose-700 text-sm hidden">Decline</button>
-                    <button id="event-detail-accept-btn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm hidden">Accept</button>
-                </div>
+            <button id="show-more-attendees-btn" class="btn btn-sm btn-link text-blue-400 hover:underline mt-2 hidden">Show More</button> <div id="modal-actions" class="flex justify-end items-center border-t border-gray-700 pt-4 space-x-2"> 
+                <button id="decline-btn" class="px-4 py-2 bg-rose-600 text-white rounded-md hover:bg-rose-700 text-sm hidden">Decline</button>
+                <button id="accept-btn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm hidden">Accept</button>
             </div>
         </div>
     </div>
