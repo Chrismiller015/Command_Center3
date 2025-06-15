@@ -12,13 +12,15 @@ module.exports = defineConfig({
     }
   },
   preload: {
-    // No changes needed here
+    // Nothing needed here for now
   },
   renderer: {
     root: resolve('src/renderer'),
     build: {
       rollupOptions: {
-        input: resolve('src/renderer/index.html')
+        input: resolve('src/renderer/index.html'),
+        // FIX: Tell Vite that 'electron' is an external module and should not be bundled.
+        external: ['electron']
       }
     },
     plugins: [react()]

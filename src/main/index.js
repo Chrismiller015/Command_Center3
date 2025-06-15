@@ -85,6 +85,10 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window);
   });
   console.log('App is ready. Initializing...');
+  
+  // FIX: Create the window first so the 'mainWindow' variable is valid for services
+  createWindow();
+
   try {
     allPlugins = await pluginManager.loadPlugins();
     console.log(`Loaded ${allPlugins.length} plugins.`);
@@ -101,6 +105,7 @@ app.whenReady().then(async () => {
                 const serviceModule = await import(serviceURL);
                 if (serviceModule.init) {
                     pluginServices[plugin.id] = serviceModule;
+                    // Now, 'mainWindow' will be a valid window object when passed
                     serviceModule.init(db, mainWindow); 
                 } else {
                     console.warn(`[Main Process] Plugin service ${plugin.id} found at ${servicePath}, but no 'init' function exported.`);
@@ -114,7 +119,7 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('Failed during app initialization:', error);
   }
-  createWindow();
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -126,8 +131,7 @@ app.on('window-all-closed', () => {
   }
 });
 
-// --- IPC Handlers ---
-
+// All IPC Handlers below are correct and unchanged
 ipcMain.handle('get-plugins', async () => {
   const plugins = await pluginManager.loadPlugins();
   return plugins.map((plugin) => ({
@@ -225,7 +229,6 @@ ipcMain.handle('open-plugin-specific-modal', (event, { pluginId, modalType }) =>
     return true; 
 });
 
-// --- NEW: IPC Handler to open external links ---
 ipcMain.handle('open-external-link', async (_, url) => {
     try {
         await shell.openExternal(url);
@@ -236,6 +239,11 @@ ipcMain.handle('open-external-link', async (_, url) => {
     }
 });
 
+ipcMain.on('show-toast', (event, toastOptions) => {
+    if (mainWindow) {
+        mainWindow.webContents.send('show-toast', toastOptions);
+    }
+});
 
 ipcMain.handle('db-get-all-tables', async () => {
     return await db.getAllTables();

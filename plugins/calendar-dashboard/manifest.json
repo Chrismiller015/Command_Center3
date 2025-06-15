@@ -19,6 +19,16 @@
         "modalType": "calendars-modal"
       },
       "tooltip": "Manage which calendars are synced"
+    },
+    {
+      "id": "logout",
+      "label": "Logout",
+      "icon": "fa-solid-right-from-bracket",
+      "action": {
+        "type": "serviceMethod",
+        "methodName": "clearAuthData"
+      },
+      "tooltip": "Logout and clear credentials"
     }
   ],
   "settings": [
@@ -31,6 +41,17 @@
       "key": "googleClientSecret",
       "label": "Google Client Secret",
       "type": "password"
+    },
+    {
+      "key": "showDeclined",
+      "label": "Show Declined Events",
+      "type": "checkbox"
+    },
+    {
+      "key": "excludedKeywords",
+      "label": "Exclude Events by Subject",
+      "type": "text",
+      "placeholder": "Comma-separated (e.g., Canceled, Focus Time)"
     },
     {
       "key": "googleTokens",

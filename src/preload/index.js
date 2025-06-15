@@ -28,8 +28,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Generic Plugin Service Call API (for plugin backend services)
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args), 
+
+  // --- NEW: UI Services API ---
+  ui: {
+    showToast: (options) => ipcRenderer.send('show-toast', options),
+  },
+  
   on: (channel, callback) => {
-    const validChannels = ['auth-success', 'auth-failure', 'plugin-modal-request']; 
+    const validChannels = ['auth-success', 'auth-failure', 'plugin-modal-request', 'show-toast']; 
     if (validChannels.includes(channel)) {
       const wrappedCallback = (event, ...args) => callback(...args);
       ipcRenderer.on(channel, wrappedCallback);
@@ -59,14 +65,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     networkInterfaces: () => ipcRenderer.invoke('get-os-network-interfaces'),
   },
 
-  /**
-   * Allows any sandboxed plugin to require a Node.js module.
-   * NOTE: This is generally discouraged for security in renderers.
-   * Prefer using plugin backend services (`service.js`) or specific IPC calls.
-   * This is kept for compatibility but its use should be minimized.
-   * @param {string} moduleName - The name of the module to require.
-   * @returns {any} The required module.
-   */
   require: (moduleName) => {
     return require(moduleName); 
   }

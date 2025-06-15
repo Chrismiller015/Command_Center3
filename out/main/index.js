@@ -292,6 +292,7 @@ electron.app.whenReady().then(async () => {
     utils.optimizer.watchWindowShortcuts(window);
   });
   console.log("App is ready. Initializing...");
+  createWindow();
   try {
     allPlugins = await pluginManager.loadPlugins();
     console.log(`Loaded ${allPlugins.length} plugins.`);
@@ -318,7 +319,6 @@ electron.app.whenReady().then(async () => {
   } catch (error) {
     console.error("Failed during app initialization:", error);
   }
-  createWindow();
   electron.app.on("activate", function() {
     if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -420,6 +420,11 @@ electron.ipcMain.handle("open-external-link", async (_, url2) => {
   } catch (error) {
     console.error(`Error opening external link ${url2}:`, error);
     return { success: false, error: error.message };
+  }
+});
+electron.ipcMain.on("show-toast", (event, toastOptions) => {
+  if (mainWindow) {
+    mainWindow.webContents.send("show-toast", toastOptions);
   }
 });
 electron.ipcMain.handle("db-get-all-tables", async () => {
