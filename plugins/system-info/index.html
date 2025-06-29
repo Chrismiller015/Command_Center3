@@ -11,11 +11,12 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #111827; /* bg-gray-900 */
+            background-color: #111827;
+            color: #f9fafb;
         }
     </style>
 </head>
-<body class="text-white bg-gray-900 p-4">
+<body class="p-4">
     <div id="error-container" class="hidden bg-red-800 text-white p-4 rounded-lg mb-4"></div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="bg-gray-800 p-4 rounded-lg">
@@ -29,13 +30,10 @@
                 <li><strong>Uptime:</strong> <span id="uptime"></span></li>
             </ul>
         </div>
-
         <div class="bg-gray-800 p-4 rounded-lg">
             <h2 class="text-lg font-semibold text-indigo-400 mb-2">CPU</h2>
-            <div id="cpu-info" class="space-y-1 text-sm">
-                </div>
+            <div id="cpu-info" class="space-y-1 text-sm"></div>
         </div>
-
         <div class="bg-gray-800 p-4 rounded-lg">
             <h2 class="text-lg font-semibold text-indigo-400 mb-2">Memory</h2>
             <ul class="space-y-1 text-sm">
@@ -47,6 +45,7 @@
 
     <script>
         function formatBytes(bytes, decimals = 2) {
+            if (!bytes) return 'N/A';
             if (bytes === 0) return '0 Bytes';
             const k = 1024;
             const dm = decimals < 0 ? 0 : decimals;
@@ -56,6 +55,7 @@
         }
 
         function formatUptime(seconds) {
+            if (!seconds) return 'N/A';
             const d = Math.floor(seconds / (3600 * 24));
             const h = Math.floor(seconds % (3600 * 24) / 3600);
             const m = Math.floor(seconds % 3600 / 60);
@@ -65,42 +65,37 @@
 
         async function updateSystemInfo() {
             try {
-                // OS Info
-                document.getElementById('hostname').textContent = await window.electronAPI.getOSInfo('hostname');
-                document.getElementById('type').textContent = await window.electronAPI.getOSInfo('type');
-                document.getElementById('platform').textContent = await window.electronAPI.getOSInfo('platform');
-                document.getElementById('arch').textContent = await window.electronAPI.getOSInfo('arch');
-                document.getElementById('release').textContent = await window.electronAPI.getOSInfo('release');
-                document.getElementById('uptime').textContent = formatUptime(await window.electronAPI.getOSInfo('uptime'));
+                // Make a single, more reliable call to get all info
+                const info = await window.electronAPI.getAllSystemInfo();
 
-                // Memory Info
-                const totalMem = await window.electronAPI.getOSInfo('totalmem');
-                const freeMem = await window.electronAPI.getOSInfo('freemem');
-                document.getElementById('totalmem').textContent = formatBytes(totalMem);
-                document.getElementById('freemem').textContent = formatBytes(freeMem);
-
-                // CPU Info
-                const cpus = await window.electronAPI.getOSInfo('cpus');
-                const cpuInfoContainer = document.getElementById('cpu-info');
-                if (cpus && cpus.length > 0) {
-                    cpuInfoContainer.innerHTML = `
-                        <p><strong>Model:</strong> ${cpus[0].model}</p>
-                        <p><strong>Speed:</strong> ${cpus[0].speed} MHz</p>
-                        <p><strong>Cores:</strong> ${cpus.length}</p>
-                    `;
+                if (!info) {
+                    throw new Error("Received no system information from the main process.");
                 }
+
+                // Populate the UI from the single info object
+                document.getElementById('hostname').textContent = info.hostname;
+                document.getElementById('type').textContent = info.type;
+                document.getElementById('platform').textContent = info.platform;
+                document.getElementById('arch').textContent = info.arch;
+                document.getElementById('release').textContent = info.release;
+                document.getElementById('uptime').textContent = formatUptime(info.uptime);
+                document.getElementById('totalmem').textContent = formatBytes(info.totalmem);
+                document.getElementById('freemem').textContent = formatBytes(info.freemem);
+                
+                const cpuInfoContainer = document.getElementById('cpu-info');
+                if (info.cpus && info.cpus.length > 0) {
+                    cpuInfoContainer.innerHTML = `<p><strong>Model:</strong> ${info.cpus[0].model}</p><p><strong>Speed:</strong> ${info.cpus[0].speed} MHz</p><p><strong>Cores:</strong> ${info.cpus.length}</p>`;
+                }
+
             } catch (error) {
-                console.error('Failed to fetch system info:', error);
-                const errorContainer = document.getElementById('error-container');
-                errorContainer.textContent = `Error: ${error.message}`;
-                errorContainer.classList.remove('hidden');
+                console.error('[SysInfo] Error during update:', error);
+                document.getElementById('error-container').textContent = `Error: ${error.message}`;
+                document.getElementById('error-container').classList.remove('hidden');
             }
         }
         
-        document.addEventListener('DOMContentLoaded', () => {
-            updateSystemInfo();
-            setInterval(updateSystemInfo, 5000); // Refresh every 5 seconds
-        });
+        updateSystemInfo();
+        setInterval(updateSystemInfo, 5000);
     </script>
 </body>
 </html>

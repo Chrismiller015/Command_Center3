@@ -1,4 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react';
+// Use the existing @heroicons/react library
+import { Cog6ToothIcon, BugAntIcon } from '@heroicons/react/24/outline';
+
+const PluginToolbar = ({ plugin, onDebug }) => {
+  if (!plugin) return null;
+
+  return (
+    <div className="flex-shrink-0 bg-gray-800/50 backdrop-blur-sm border-b border-white/10 px-4 py-1 flex items-center justify-between">
+      <h2 className="text-lg font-semibold text-white">{plugin.manifest.name}</h2>
+      <div className="flex items-center space-x-2">
+        <button
+          title="Plugin Settings"
+          className="p-1.5 rounded-md hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+          onClick={() => alert('Plugin settings modal not yet implemented.')}
+        >
+          {/* Replaced with Heroicon */}
+          <Cog6ToothIcon className="h-5 w-5" />
+        </button>
+        <button
+          title="Debug Plugin"
+          className="p-1.5 rounded-md hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+          onClick={onDebug}
+        >
+          {/* Replaced with Heroicon */}
+          <BugAntIcon className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const PluginView = ({ plugin }) => {
   const webviewRef = useRef(null);
@@ -6,8 +36,11 @@ const PluginView = ({ plugin }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const handleDebugClick = () => {
+    webviewRef.current?.openDevTools();
+  };
+
   useEffect(() => {
-    // Reset state when the plugin prop changes to ensure a fresh load
     setIsLoading(true);
     setError(null);
     setPreloadPath('');
@@ -31,9 +64,8 @@ const PluginView = ({ plugin }) => {
     const handleLoadStop = () => setIsLoading(false);
     const handleLoadFail = (e) => {
       console.error(`Plugin '${plugin?.manifest?.name}' failed to load:`, e);
-       // Error code -3 is ERR_ABORTED, which can happen during hot-reloads. We can safely ignore it.
       if (e.code !== -3) {
-        setError(`Failed to load plugin content. Error code: ${e.code}. Check the file path and manifest.`);
+        setError(`Failed to load plugin content. Error code: ${e.code}.`);
         setIsLoading(false);
       }
     };
@@ -55,15 +87,17 @@ const PluginView = ({ plugin }) => {
     );
   }
 
-  // ** FIX: Access all properties from plugin.manifest **
-  const { name, entryPoint, nodeIntegration } = plugin.manifest;
+  const { entryPoint, nodeIntegration } = plugin.manifest;
 
   return (
     <div className="w-full h-full flex flex-col bg-gray-900 text-white">
-      <div className="flex-grow relative">
+      {/* Restored Toolbar with Heroicons */}
+      <PluginToolbar plugin={plugin} onDebug={handleDebugClick} />
+      
+      <div className="flex-grow relative border-t border-black/20">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
-            <p>Loading {name}...</p>
+            <p>Loading {plugin.manifest.name}...</p>
           </div>
         )}
         {error && (
@@ -77,7 +111,7 @@ const PluginView = ({ plugin }) => {
             ref={webviewRef}
             src={`file://${entryPoint}`}
             preload={`file://${preloadPath}`}
-            className={`w-full h-full ${isLoading || error ? 'invisible' : ''}`}
+            className={`w-full h-full bg-transparent ${isLoading || error ? 'invisible' : ''}`}
             nodeintegration={nodeIntegration ? 'true' : undefined}
           ></webview>
         )}

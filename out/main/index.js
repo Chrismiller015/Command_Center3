@@ -28,13 +28,20 @@ async function loadPlugins() {
   pluginServices.clear();
   for (const dirent of pluginFolders) {
     if (dirent.isDirectory()) {
-      const manifestPath = path.join(pluginsDir, dirent.name, "manifest.json");
+      const pluginPath = path.join(pluginsDir, dirent.name);
+      const manifestPath = path.join(pluginPath, "manifest.json");
       try {
         const manifestContent = await fs.promises.readFile(manifestPath, "utf-8");
         const manifest = JSON.parse(manifestContent);
+        if (manifest.entryPoint) {
+          manifest.entryPoint = path.join(pluginPath, manifest.entryPoint);
+        }
+        if (manifest.widget) {
+          manifest.widget = path.join(pluginPath, manifest.widget);
+        }
         const plugin = {
           id: dirent.name,
-          path: path.join(pluginsDir, dirent.name),
+          path: pluginPath,
           manifest
         };
         plugins.push(plugin);
@@ -344,37 +351,21 @@ function registerNotificationHandler() {
   });
 }
 function registerOsHandlers() {
-  electron.ipcMain.handle("get-os-info", (event, infoType) => {
+  electron.ipcMain.handle("get-all-system-info", () => {
     try {
-      switch (infoType) {
-        case "hostname":
-          return os.hostname();
-        case "type":
-          return os.type();
-        case "platform":
-          return os.platform();
-        case "arch":
-          return os.arch();
-        case "release":
-          return os.release();
-        case "uptime":
-          return os.uptime();
-        case "loadavg":
-          return os.loadavg();
-        case "totalmem":
-          return os.totalmem();
-        case "freemem":
-          return os.freemem();
-        case "cpus":
-          return os.cpus();
-        case "networkInterfaces":
-          return os.networkInterfaces();
-        default:
-          console.warn(`Attempted to access invalid OS info type: ${infoType}`);
-          throw new Error(`Invalid OS info type requested: ${infoType}`);
-      }
+      return {
+        hostname: os.hostname(),
+        type: os.type(),
+        platform: os.platform(),
+        arch: os.arch(),
+        release: os.release(),
+        uptime: os.uptime(),
+        totalmem: os.totalmem(),
+        freemem: os.freemem(),
+        cpus: os.cpus()
+      };
     } catch (error) {
-      console.error(`Error fetching OS info for type '${infoType}':`, error);
+      console.error(`[osHandler] Error gathering all system info:`, error);
       throw error;
     }
   });

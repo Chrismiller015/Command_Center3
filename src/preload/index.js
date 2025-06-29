@@ -7,22 +7,24 @@ if (process.contextIsolated) {
   try {
     // Main API for all plugin frontends AND the main application shell
     contextBridge.exposeInMainWorld('electronAPI', {
-      // Moved from 'electron' object: Function for the main app to get the webview preload path.
+      // === Main App Functions ===
+      // This is called by PluginView.jsx to get the path for the <webview> preload attribute.
       getPreloadPath: () => ipcRenderer.invoke('get-preload-path'),
-
-      // === Getters ===
+      
+      // This is called by App.jsx to populate the sidebar.
       getPlugins: () => ipcRenderer.invoke('get-plugins'),
+
+      // === System Info ===
+      // This is called by the System Info plugin to get all OS data at once.
+      getAllSystemInfo: () => ipcRenderer.invoke('get-all-system-info'),
+
+      // === Generic Plugin/DB Functions ===
       getGlobalSetting: (key) => ipcRenderer.invoke('db-get-global-setting', key),
       getPluginSettings: (pluginId) => ipcRenderer.invoke('db-get-plugin-settings', pluginId),
       getAllTables: () => ipcRenderer.invoke('db-get-all-tables'),
       getTableContent: (tableName) => ipcRenderer.invoke('db-get-table-content', tableName),
-      getOSInfo: (infoType) => ipcRenderer.invoke('get-os-info', infoType),
-
-      // === Setters ===
       setGlobalSetting: (key, value) => ipcRenderer.invoke('db-set-global-setting', { key, value }),
       setPluginSetting: (pluginId, key, value) => ipcRenderer.invoke('db-set-plugin-setting', { pluginId, key, value }),
-
-      // === Actions ===
       deleteRow: (tableName, rowid) => ipcRenderer.invoke('db-delete-row', { tableName, rowid }),
       dropTable: (tableName) => ipcRenderer.invoke('db-drop-table', tableName),
       regeneratePluginTables: (pluginId) => ipcRenderer.invoke('plugin-regenerate-tables', pluginId),
@@ -41,7 +43,6 @@ if (process.contextIsolated) {
       onShowToast: (callback) => {
         const listener = (event, options) => callback(options);
         ipcRenderer.on('show-toast', listener);
-        // Return a cleanup function to be called on component unmount
         return () => {
           ipcRenderer.removeListener('show-toast', listener);
         };

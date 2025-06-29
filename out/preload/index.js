@@ -4,19 +4,21 @@ console.log("[Preload] Preload script has loaded successfully.");
 if (process.contextIsolated) {
   try {
     electron.contextBridge.exposeInMainWorld("electronAPI", {
-      // Moved from 'electron' object: Function for the main app to get the webview preload path.
+      // === Main App Functions ===
+      // This is called by PluginView.jsx to get the path for the <webview> preload attribute.
       getPreloadPath: () => electron.ipcRenderer.invoke("get-preload-path"),
-      // === Getters ===
+      // This is called by App.jsx to populate the sidebar.
       getPlugins: () => electron.ipcRenderer.invoke("get-plugins"),
+      // === System Info ===
+      // This is called by the System Info plugin to get all OS data at once.
+      getAllSystemInfo: () => electron.ipcRenderer.invoke("get-all-system-info"),
+      // === Generic Plugin/DB Functions ===
       getGlobalSetting: (key) => electron.ipcRenderer.invoke("db-get-global-setting", key),
       getPluginSettings: (pluginId) => electron.ipcRenderer.invoke("db-get-plugin-settings", pluginId),
       getAllTables: () => electron.ipcRenderer.invoke("db-get-all-tables"),
       getTableContent: (tableName) => electron.ipcRenderer.invoke("db-get-table-content", tableName),
-      getOSInfo: (infoType) => electron.ipcRenderer.invoke("get-os-info", infoType),
-      // === Setters ===
       setGlobalSetting: (key, value) => electron.ipcRenderer.invoke("db-set-global-setting", { key, value }),
       setPluginSetting: (pluginId, key, value) => electron.ipcRenderer.invoke("db-set-plugin-setting", { pluginId, key, value }),
-      // === Actions ===
       deleteRow: (tableName, rowid) => electron.ipcRenderer.invoke("db-delete-row", { tableName, rowid }),
       dropTable: (tableName) => electron.ipcRenderer.invoke("db-drop-table", tableName),
       regeneratePluginTables: (pluginId) => electron.ipcRenderer.invoke("plugin-regenerate-tables", pluginId),
