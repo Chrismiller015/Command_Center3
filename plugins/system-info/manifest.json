@@ -1,10 +1,11 @@
 {
-    "name": "System Info",
-    "version": "1.0.0",
-    "description": "Displays live information about your computer.",
-    "entryPoint": "index.html",
-    "widget": "widget.html",
-    "dependencies": {},
-    "settings": [],
-    "tables": []
+  "name": "System Info",
+  "version": "1.0.0",
+  "description": "Displays detailed operating system and hardware information.",
+  "entryPoint": "index.html",
+  "widget": "widget.html",
+  "nodeIntegration": false,
+  "dependencies": {},
+  "settings": [],
+  "tables": []
 }

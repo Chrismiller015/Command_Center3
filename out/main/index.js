@@ -344,17 +344,40 @@ function registerNotificationHandler() {
   });
 }
 function registerOsHandlers() {
-  electron.ipcMain.handle("get-os-hostname", () => os.hostname());
-  electron.ipcMain.handle("get-os-type", () => os.type());
-  electron.ipcMain.handle("get-os-platform", () => os.platform());
-  electron.ipcMain.handle("get-os-arch", () => os.arch());
-  electron.ipcMain.handle("get-os-release", () => os.release());
-  electron.ipcMain.handle("get-os-uptime", () => os.uptime());
-  electron.ipcMain.handle("get-os-loadavg", () => os.loadavg());
-  electron.ipcMain.handle("get-os-totalmem", () => os.totalmem());
-  electron.ipcMain.handle("get-os-freemem", () => os.freemem());
-  electron.ipcMain.handle("get-os-cpus", () => os.cpus());
-  electron.ipcMain.handle("get-os-network-interfaces", () => os.networkInterfaces());
+  electron.ipcMain.handle("get-os-info", (event, infoType) => {
+    try {
+      switch (infoType) {
+        case "hostname":
+          return os.hostname();
+        case "type":
+          return os.type();
+        case "platform":
+          return os.platform();
+        case "arch":
+          return os.arch();
+        case "release":
+          return os.release();
+        case "uptime":
+          return os.uptime();
+        case "loadavg":
+          return os.loadavg();
+        case "totalmem":
+          return os.totalmem();
+        case "freemem":
+          return os.freemem();
+        case "cpus":
+          return os.cpus();
+        case "networkInterfaces":
+          return os.networkInterfaces();
+        default:
+          console.warn(`Attempted to access invalid OS info type: ${infoType}`);
+          throw new Error(`Invalid OS info type requested: ${infoType}`);
+      }
+    } catch (error) {
+      console.error(`Error fetching OS info for type '${infoType}':`, error);
+      throw error;
+    }
+  });
 }
 function registerIpcHandlers(mainWindowRef, pluginServicesRef, allPluginsRef) {
   registerSettingsHandlers();
@@ -363,6 +386,9 @@ function registerIpcHandlers(mainWindowRef, pluginServicesRef, allPluginsRef) {
   registerClipboardHandler();
   registerNotificationHandler();
   registerOsHandlers();
+  electron.ipcMain.handle("get-preload-path", () => {
+    return path.join(__dirname, "..", "preload", "index.js");
+  });
   electron.ipcMain.handle("plugin:service-call", async (event, { pluginId, method, params }) => {
     const serviceModule = pluginServicesRef.get(pluginId);
     if (!serviceModule) {
@@ -425,7 +451,6 @@ function registerIpcHandlers(mainWindowRef, pluginServicesRef, allPluginsRef) {
   });
 }
 let mainWindow;
-const preloadScriptPath = path.join(__dirname, "../preload/index.js");
 function createWindow() {
   mainWindow = new electron.BrowserWindow({
     width: 1200,
@@ -434,10 +459,12 @@ function createWindow() {
     autoHideMenuBar: true,
     ...process.platform === "linux" ? { icon } : {},
     webPreferences: {
-      // Use the variable for the main window's preload
-      preload: preloadScriptPath,
+      preload: path.join(__dirname, "../preload/index.js"),
       sandbox: false,
-      webviewTag: true
+      webviewTag: true,
+      // *** FIX: This line is critical for the preload script to work correctly ***
+      contextIsolation: true,
+      nodeIntegration: false
     }
   });
   if (utils.is.dev) {
@@ -461,17 +488,19 @@ electron.app.whenReady().then(async () => {
   electron.app.on("browser-window-created", (_, window) => {
     utils.optimizer.watchWindowShortcuts(window);
   });
-  electron.ipcMain.handle("get-preload-path", () => preloadScriptPath);
   try {
     const loadedPlugins2 = await loadPlugins();
     await initializeDatabase(loadedPlugins2);
+    createWindow();
     registerIpcHandlers(mainWindow, getPluginServices(), getPlugins());
+    electron.ipcMain.handle("get-plugins", () => {
+      return getPlugins();
+    });
   } catch (error) {
     console.error("Failed during app initialization:", error);
     electron.app.quit();
     return;
   }
-  createWindow();
   electron.app.on("activate", function() {
     if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -480,7 +509,4 @@ electron.app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     electron.app.quit();
   }
-});
-electron.ipcMain.handle("get-plugins", () => {
-  return getPlugins();
 });

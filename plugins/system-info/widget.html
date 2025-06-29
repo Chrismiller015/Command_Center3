@@ -1,48 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background-color: transparent; color: #d1d5db; font-family: sans-serif; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Info Widget</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: transparent;
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
 </head>
-<body class="p-4">
-    <div class="bg-gray-800 p-4 rounded-lg h-full text-sm">
-        <h2 class="text-md font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">System</h2>
-        <p><strong>Hostname:</strong> <span id="hostname"></span></p>
-        <p><strong>Platform:</strong> <span id="platform"></span></p>
-        <p><strong>OS Type:</strong> <span id="type"></span></p>
-        <p><strong>Uptime:</strong> <span id="uptime"></span></p>
+<body class="text-gray-200 text-sm">
+  <div class="p-2 space-y-1">
+    <div class="flex justify-between items-center">
+      <span class="font-semibold text-gray-400">Hostname:</span>
+      <span id="hostname" class="font-mono"></span>
     </div>
+    <div class="flex justify-between items-center">
+      <span class="font-semibold text-gray-400">Platform:</span>
+      <span id="platform" class="font-mono"></span>
+    </div>
+    <div class="flex justify-between items-center">
+      <span class="font-semibold text-gray-400">Type:</span>
+      <span id="type" class="font-mono"></span>
+    </div>
+    <div class="flex justify-between items-center">
+      <span class="font-semibold text-gray-400">Uptime:</span>
+      <span id="uptime" class="font-mono"></span>
+    </div>
+  </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => { // Made async to await IPC calls
-            try {
-                if (typeof window.electronAPI === 'undefined') {
-                    throw new Error('window.electronAPI is undefined.');
-                }
-                const osAPI = window.electronAPI.os; // Renamed to osAPI
+  <script>
+    function formatUptime(seconds) {
+      const d = Math.floor(seconds / (3600 * 24));
+      const h = Math.floor(seconds % (3600 * 24) / 3600);
+      const m = Math.floor(seconds % 3600 / 60);
+      return `${d}d ${h}h ${m}m`;
+    }
 
-                function formatUptime(seconds) {
-                    const days = Math.floor(seconds / (3600*24));
-                    seconds  -= days*3600*24;
-                    const hrs   = Math.floor(seconds / 3600);
-                    return `${days}d ${hrs}h`;
-                }
+    async function updateWidgetInfo() {
+      try {
+        document.getElementById('hostname').textContent = await window.electronAPI.getOSInfo('hostname');
+        document.getElementById('platform').textContent = await window.electronAPI.getOSInfo('platform');
+        document.getElementById('type').textContent = await window.electronAPI.getOSInfo('type');
+        document.getElementById('uptime').textContent = formatUptime(await window.electronAPI.getOSInfo('uptime'));
+      } catch (error) {
+        console.error('Error fetching system info for widget:', error);
+        const container = document.querySelector('.p-2');
+        container.innerHTML = `<div class="text-red-500">Error loading data.</div>`;
+      }
+    }
 
-                // Call the new IPC-based OS API methods
-                document.getElementById('hostname').textContent = await osAPI.hostname();
-                document.getElementById('platform').textContent = await osAPI.platform();
-                document.getElementById('type').textContent = await osAPI.type();
-                document.getElementById('uptime').textContent = formatUptime(await osAPI.uptime());
-
-            } catch (error) {
-                const body = document.querySelector('body');
-                body.innerHTML = `<div style="color: #fca5a5;">Error: ${error.message}</div>`;
-            }
-        });
-    </script>
+    document.addEventListener('DOMContentLoaded', () => {
+      updateWidgetInfo();
+      setInterval(updateWidgetInfo, 5000); // Refresh every 5 seconds
+    });
+  </script>
 </body>
 </html>

@@ -3,85 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Information</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #111827; color: #d1d5db; font-family: sans-serif; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
     </style>
 </head>
-<body class="p-6">
-    <div id="plugin-content">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <h2 class="text-lg font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">System</h2>
-                <p><strong>Hostname:</strong> <span id="hostname"></span></p>
-                <p><strong>Platform:</strong> <span id="platform"></span></p>
-                <p><strong>OS Type:</strong> <span id="type"></span></p>
-                <p><strong>OS Release:</strong> <span id="release"></span></p>
-                <p><strong>Uptime:</strong> <span id="uptime"></span></p>
-            </div>
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <h2 class="text-lg font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">Memory</h2>
-                <p><strong>Total Memory:</strong> <span id="totalmem"></span></p>
-                <p><strong>Free Memory:</strong> <span id="freemem"></span></p>
-            </div>
-            <div class="bg-gray-800 p-4 rounded-lg col-span-1 md:col-span-2">
-                <h2 class="text-lg font-bold text-indigo-400 border-b border-gray-700 pb-2 mb-2">CPU</h2>
-                <p><strong>Model:</strong> <span id="cpu-model"></span></p>
-                <p><strong>Cores:</strong> <span id="cpu-cores"></span></p>
-            </div>
+<body class="text-white bg-gray-900 p-4">
+    <div id="error-container" class="hidden bg-red-800 text-white p-4 rounded-lg mb-4"></div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-gray-800 p-4 rounded-lg">
+            <h2 class="text-lg font-semibold text-indigo-400 mb-2">Operating System</h2>
+            <ul class="space-y-1 text-sm">
+                <li><strong>Hostname:</strong> <span id="hostname"></span></li>
+                <li><strong>Type:</strong> <span id="type"></span></li>
+                <li><strong>Platform:</strong> <span id="platform"></span></li>
+                <li><strong>Architecture:</strong> <span id="arch"></span></li>
+                <li><strong>Release:</strong> <span id="release"></span></li>
+                <li><strong>Uptime:</strong> <span id="uptime"></span></li>
+            </ul>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-lg">
+            <h2 class="text-lg font-semibold text-indigo-400 mb-2">CPU</h2>
+            <div id="cpu-info" class="space-y-1 text-sm">
+                </div>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-lg">
+            <h2 class="text-lg font-semibold text-indigo-400 mb-2">Memory</h2>
+            <ul class="space-y-1 text-sm">
+                <li><strong>Total Memory:</strong> <span id="totalmem"></span></li>
+                <li><strong>Free Memory:</strong> <span id="freemem"></span></li>
+            </ul>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', async () => { // Made async to await IPC calls
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function formatUptime(seconds) {
+            const d = Math.floor(seconds / (3600 * 24));
+            const h = Math.floor(seconds % (3600 * 24) / 3600);
+            const m = Math.floor(seconds % 3600 / 60);
+            const s = Math.floor(seconds % 60);
+            return `${d}d ${h}h ${m}m ${s}s`;
+        }
+
+        async function updateSystemInfo() {
             try {
-                if (typeof window.electronAPI === 'undefined') {
-                    throw new Error('window.electronAPI is undefined. The preload script is failing to attach to the webview.');
+                // OS Info
+                document.getElementById('hostname').textContent = await window.electronAPI.getOSInfo('hostname');
+                document.getElementById('type').textContent = await window.electronAPI.getOSInfo('type');
+                document.getElementById('platform').textContent = await window.electronAPI.getOSInfo('platform');
+                document.getElementById('arch').textContent = await window.electronAPI.getOSInfo('arch');
+                document.getElementById('release').textContent = await window.electronAPI.getOSInfo('release');
+                document.getElementById('uptime').textContent = formatUptime(await window.electronAPI.getOSInfo('uptime'));
+
+                // Memory Info
+                const totalMem = await window.electronAPI.getOSInfo('totalmem');
+                const freeMem = await window.electronAPI.getOSInfo('freemem');
+                document.getElementById('totalmem').textContent = formatBytes(totalMem);
+                document.getElementById('freemem').textContent = formatBytes(freeMem);
+
+                // CPU Info
+                const cpus = await window.electronAPI.getOSInfo('cpus');
+                const cpuInfoContainer = document.getElementById('cpu-info');
+                if (cpus && cpus.length > 0) {
+                    cpuInfoContainer.innerHTML = `
+                        <p><strong>Model:</strong> ${cpus[0].model}</p>
+                        <p><strong>Speed:</strong> ${cpus[0].speed} MHz</p>
+                        <p><strong>Cores:</strong> ${cpus.length}</p>
+                    `;
                 }
-                
-                const osAPI = window.electronAPI.os; // Renamed to osAPI to avoid conflict with Node's 'os'
-
-                if (typeof osAPI === 'undefined' || Object.keys(osAPI).length === 0) {
-                    throw new Error('window.electronAPI.os is undefined or empty. The OS API is incomplete.');
-                }
-
-                function formatBytes(bytes) {
-                    if (bytes === 0) return '0 Bytes';
-                    const k = 1024;
-                    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-                    const i = Math.floor(Math.log(bytes) / Math.log(k));
-                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-                }
-
-                function formatUptime(seconds) {
-                    const days = Math.floor(seconds / (3600*24));
-                    seconds  -= days*3600*24;
-                    const hrs   = Math.floor(seconds / 3600);
-                    seconds  -= hrs*3600;
-                    const mnts = Math.floor(seconds / 60);
-                    return `${days}d ${hrs}h ${mnts}m`;
-                }
-
-                // Call the new IPC-based OS API methods
-                document.getElementById('hostname').textContent = await osAPI.hostname();
-                document.getElementById('platform').textContent = await osAPI.platform();
-                document.getElementById('type').textContent = await osAPI.type();
-                document.getElementById('release').textContent = await osAPI.release();
-                document.getElementById('uptime').textContent = formatUptime(await osAPI.uptime());
-                document.getElementById('totalmem').textContent = formatBytes(await osAPI.totalmem());
-                document.getElementById('freemem').textContent = formatBytes(await osAPI.freemem());
-                const cpus = await osAPI.cpus();
-                document.getElementById('cpu-model').textContent = cpus[0].model;
-                document.getElementById('cpu-cores').textContent = cpus.length;
-
             } catch (error) {
-                const body = document.querySelector('body');
-                body.innerHTML = `<div style="color: #fca5a5; background-color: #450a0a; border: 1px solid #991b1b; padding: 20px; border-radius: 8px;">
-                    <h2 style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">Plugin Failed to Load</h2>
-                    <pre style="white-space: pre-wrap; word-wrap: break-word;">${error.stack}</pre>
-                </div>`;
-                console.error(error);
+                console.error('Failed to fetch system info:', error);
+                const errorContainer = document.getElementById('error-container');
+                errorContainer.textContent = `Error: ${error.message}`;
+                errorContainer.classList.remove('hidden');
             }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSystemInfo();
+            setInterval(updateSystemInfo, 5000); // Refresh every 5 seconds
         });
     </script>
 </body>

@@ -1,15 +1,13 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
-import { loadPlugins, getPlugins, getPluginServices } from './pluginManager.js'
-import { initializeDatabase } from './database.js'
-import { registerIpcHandlers } from './ipc/index.js'
+import { app, shell, BrowserWindow, ipcMain } from 'electron';
+import { join } from 'path';
+import { electronApp, optimizer, is } from '@electron-toolkit/utils';
+import icon from '../../resources/icon.png?asset';
+import { loadPlugins, getPlugins, getPluginServices } from './pluginManager.js';
+import { initializeDatabase } from './database.js';
+import { registerIpcHandlers } from './ipc/index.js';
 
-let mainWindow
-
-// FIX: Define the preload script path in a variable accessible in this scope
-const preloadScriptPath = join(__dirname, '../preload/index.js');
+// Define mainWindow in a scope accessible to all functions
+let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -19,10 +17,12 @@ function createWindow() {
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      // Use the variable for the main window's preload
-      preload: preloadScriptPath,
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       webviewTag: true,
+      // *** FIX: This line is critical for the preload script to work correctly ***
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 
@@ -53,20 +53,27 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window);
   });
 
-  // FIX: Add a new IPC handler to provide the preload path to the renderer
-  ipcMain.handle('get-preload-path', () => preloadScriptPath);
-
   try {
+    // 1. Perform all asynchronous setup first
     const loadedPlugins = await loadPlugins();
     await initializeDatabase(loadedPlugins);
+
+    // 2. Create the main application window
+    createWindow();
+
+    // 3. Now that `mainWindow` exists, register all IPC handlers
     registerIpcHandlers(mainWindow, getPluginServices(), getPlugins());
+    
+    // This handler provides the list of plugins to the renderer
+    ipcMain.handle('get-plugins', () => {
+        return getPlugins();
+    });
+
   } catch (error) {
     console.error('Failed during app initialization:', error);
     app.quit();
     return;
   }
-  
-  createWindow();
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -77,8 +84,4 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
-});
-
-ipcMain.handle('get-plugins', () => {
-  return getPlugins();
 });

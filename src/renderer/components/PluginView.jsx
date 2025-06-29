@@ -1,133 +1,89 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CogIcon } from '@heroicons/react/24/solid';
-import { ArrowPathIcon as RefreshIcon, CommandLineIcon } from '@heroicons/react/24/outline';
-import Modal from './Modal';
-import PluginSettings from './PluginSettings';
 
-function PluginView({ plugin }) {
+const PluginView = ({ plugin }) => {
   const webviewRef = useRef(null);
-  const [isWebviewReady, setIsWebviewReady] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [preloadPath, setPreloadPath] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Fetch the preload path when the component mounts
   useEffect(() => {
+    // Reset state when the plugin prop changes to ensure a fresh load
+    setIsLoading(true);
+    setError(null);
+    setPreloadPath('');
+
     const fetchPreloadPath = async () => {
       try {
         const path = await window.electronAPI.getPreloadPath();
         setPreloadPath(path);
       } catch (error) {
-        console.error("Failed to get preload path:", error);
+        console.error('Failed to get preload path:', error);
+        setError('Could not load plugin environment.');
+        setIsLoading(false);
       }
     };
+
     fetchPreloadPath();
-  }, []);
-
-  const entryPoint = plugin?.manifest?.entryPoint;
-  
-  if (!plugin || !entryPoint) {
-    return <div className="p-4 text-red-400">Error: Cannot load plugin. It may be missing 'entryPoint' in its manifest.json.</div>;
-  }
-  
-  const pluginPath = `file://${plugin.path}/${entryPoint}`;
-
-  useEffect(() => {
-    if (!webviewRef.current || !preloadPath) return;
 
     const webview = webviewRef.current;
-    setIsWebviewReady(false);
-    
-    // Set the preload attribute programmatically
-    webview.preload = `file://${preloadPath}`;
+    if (!webview) return;
 
-    const handleDomReady = () => {
-      console.log(`Webview for ${plugin.id} is ready.`);
-      setIsWebviewReady(true);
+    const handleLoadStop = () => setIsLoading(false);
+    const handleLoadFail = (e) => {
+      console.error(`Plugin '${plugin?.manifest?.name}' failed to load:`, e);
+       // Error code -3 is ERR_ABORTED, which can happen during hot-reloads. We can safely ignore it.
+      if (e.code !== -3) {
+        setError(`Failed to load plugin content. Error code: ${e.code}. Check the file path and manifest.`);
+        setIsLoading(false);
+      }
     };
 
-    webview.addEventListener('dom-ready', handleDomReady);
-    
-    // Also listen for crashes
-    const handleCrash = (e) => {
-        console.error(`Webview for ${plugin.id} has crashed.`, e);
-    }
-    webview.addEventListener('crashed', handleCrash);
+    webview.addEventListener('did-stop-loading', handleLoadStop);
+    webview.addEventListener('did-fail-load', handleLoadFail);
 
     return () => {
-      webview.removeEventListener('dom-ready', handleDomReady);
-      webview.removeEventListener('crashed', handleCrash);
+      webview.removeEventListener('did-stop-loading', handleLoadStop);
+      webview.removeEventListener('did-fail-load', handleLoadFail);
     };
-  }, [plugin.id, preloadPath]);
+  }, [plugin]);
 
-  const handleRefresh = () => {
-    if (webviewRef.current) {
-      webviewRef.current.reload();
-    }
-  };
+  if (!plugin || !plugin.manifest) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-900">
+        <p className="text-gray-400">Select a plugin from the sidebar to get started.</p>
+      </div>
+    );
+  }
 
-  const openWebviewDevTools = () => {
-    if (webviewRef.current && isWebviewReady) {
-      webviewRef.current.openDevTools();
-    } else {
-      console.warn("Webview is not ready yet. Please wait a moment and try again.");
-    }
-  };
+  // ** FIX: Access all properties from plugin.manifest **
+  const { name, entryPoint, nodeIntegration } = plugin.manifest;
 
   return (
-    <div className="flex flex-col h-full w-full bg-gray-900">
-      <div className="flex items-center justify-between bg-gray-800 p-2 border-b border-gray-700 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-white">{plugin.manifest.name}</h2>
-        <div className="flex items-center gap-2">
-          {plugin.manifest.settings && (
-            <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              title="Plugin Settings"
-              className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-md"
-            >
-              <CogIcon className="h-5 w-5" />
-            </button>
-          )}
-          <button
-            onClick={handleRefresh}
-            title="Refresh Plugin"
-            className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-md"
-          >
-            <RefreshIcon className="h-5 w-5" />
-          </button>
-          <button
-            onClick={openWebviewDevTools}
-            title="Open Plugin DevTools"
-            className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-md"
-          >
-            <CommandLineIcon className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-grow w-full h-full bg-gray-900">
-        {preloadPath ? (
-          <webview
-            ref={webviewRef}
-            src={pluginPath}
-            className="w-full h-full"
-            nodeintegration="false"
-          ></webview>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-400">Initializing plugin environment...</p>
+    <div className="w-full h-full flex flex-col bg-gray-900 text-white">
+      <div className="flex-grow relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
+            <p>Loading {name}...</p>
           </div>
         )}
+        {error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10 text-center p-4">
+            <p className="text-red-500 font-semibold">Error Loading Plugin</p>
+            <p className="text-red-400 text-sm mt-2">{error}</p>
+          </div>
+        )}
+        {preloadPath && entryPoint && (
+          <webview
+            ref={webviewRef}
+            src={`file://${entryPoint}`}
+            preload={`file://${preloadPath}`}
+            className={`w-full h-full ${isLoading || error ? 'invisible' : ''}`}
+            nodeintegration={nodeIntegration ? 'true' : undefined}
+          ></webview>
+        )}
       </div>
-      
-      <Modal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        title={`${plugin.manifest.name} Settings`}
-      >
-        <PluginSettings plugin={plugin} />
-      </Modal>
     </div>
   );
-}
+};
 
 export default PluginView;
